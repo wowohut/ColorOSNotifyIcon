@@ -2,4 +2,9 @@
     <string name="app_name">OStatus</string>
     <string name="home_title">ColorOS 状态栏图标优化</string>
     <string name="home_subtitle">为 ColorOS 优化通知图标并适配原生通知图标规范，仅优化状态栏图标，通知中心保持 ColorOS 原版。</string>
+    <string name="action_restart_systemui">重启 SystemUI</string>
+    <string name="dialog_restart_title">重启 SystemUI</string>
+    <string name="dialog_restart_message">将立即重启系统界面以使配置生效。此操作会导致屏幕短暂黑屏，是否继续？</string>
+    <string name="dialog_cancel">取消</string>
+    <string name="dialog_confirm_restart">确认重启</string>
 </resources>

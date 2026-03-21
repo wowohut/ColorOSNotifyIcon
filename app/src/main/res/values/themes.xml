@@ -1,17 +1,19 @@
 <resources>
-    <!-- Base application theme. -->
     <style name="Theme.ColorOSNotifyIcon" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
         <item name="colorPrimary">@color/colorPrimaryAccent</item>
         <item name="colorPrimaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
         <item name="colorSecondary">@color/colorPrimaryAccent</item>
         <item name="colorSecondaryVariant">@color/colorPrimaryAccent</item>
         <item name="colorOnSecondary">@color/white</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">@color/white</item>
+        <item name="colorSurface">@color/colorSurfaceCard</item>
+        <item name="colorOnSurface">@color/colorTextPrimary</item>
+        <item name="colorSurfaceVariant">@color/colorThemeBackground</item>
+        <item name="colorOutline">@color/colorCardStroke</item>
+        <item name="android:windowBackground">@color/colorThemeBackground</item>
+        <item name="android:statusBarColor">@color/colorThemeBackground</item>
+        <item name="android:navigationBarColor">@color/colorThemeBackground</item>
         <item name="android:windowLightStatusBar">true</item>
-        <!-- Customize your theme here. -->
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

@@ -1,21 +1,23 @@
 package com.fankes.coloros.notify.ui.activity
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import android.content.res.ColorStateList
 import com.fankes.coloros.notify.BuildConfig
-import com.fankes.coloros.notify.const.ModuleInfo
+import com.fankes.coloros.notify.R
 import com.fankes.coloros.notify.const.PackageName
 import com.fankes.coloros.notify.data.ConfigData
 import com.fankes.coloros.notify.databinding.ActivityMainBinding
 import com.fankes.coloros.notify.utils.tool.FrameworkServiceBridge
 import com.fankes.coloros.notify.utils.tool.IconRuleManagerTool
 import com.fankes.coloros.notify.utils.tool.SystemUiControl
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.shape.MaterialShapeDrawable
+import com.google.android.material.shape.ShapeAppearanceModel
 import io.github.libxposed.service.XposedService
-import io.github.libxposed.service.XposedService.OnScopeEventListener
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -43,19 +45,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private val scopeCallback = object : OnScopeEventListener {
-        override fun onScopeRequestApproved(approved: List<String>) {
-            runOnUiThread {
-                showMessage("作用域授权成功：${approved.joinToString()}")
-                updateStatus()
-            }
-        }
-
-        override fun onScopeRequestFailed(message: String) {
-            runOnUiThread { showMessage("作用域授权失败：$message") }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ConfigData.initialize(applicationContext)
@@ -69,8 +58,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindLocalState() {
-        binding.moduleEnableSwitch.isChecked = ConfigData.isModuleEnabled
-        binding.iconEnhancementSwitch.isChecked = ConfigData.isIconEnhancementEnabled
+        binding.iconEnhancementSwitch.isChecked = ConfigData.isModuleEnabled && ConfigData.isIconEnhancementEnabled
         binding.versionText.text = "模块版本：${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         binding.deviceText.text = "目标环境：ColorOS 16 / Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
         refreshRuleState()
@@ -78,27 +66,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun bindActions() {
-        binding.moduleEnableSwitch.setOnCheckedChangeListener { _, isChecked ->
-            ConfigData.isModuleEnabled = isChecked
-            refreshSettingState()
-            mirrorToRemoteStore()
-            updateStatus()
-            showRestartHint()
-        }
         binding.iconEnhancementSwitch.setOnCheckedChangeListener { _, isChecked ->
+            ConfigData.isModuleEnabled = isChecked
             ConfigData.isIconEnhancementEnabled = isChecked
             refreshSettingState()
             mirrorToRemoteStore()
             updateStatus()
             showRestartHint()
-        }
-        binding.requestScopeButton.setOnClickListener {
-            val currentService = service
-            if (currentService == null) {
-                showMessage("未连接 modern Xposed 框架")
-                return@setOnClickListener
-            }
-            currentService.requestScope(listOf(PackageName.SYSTEM_SCOPE, PackageName.SYSTEM_UI), scopeCallback)
         }
         binding.syncRulesButton.setOnClickListener {
             binding.syncRulesButton.isEnabled = false
@@ -125,25 +99,51 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.restartSystemUiButton.setOnClickListener {
-            binding.restartSystemUiButton.isEnabled = false
-            mirrorToRemoteStore(showErrors = false) { mirrorResult ->
-                mirrorResult.onSuccess {
-                    SystemUiControl.restartSystemUi { result ->
-                        binding.restartSystemUiButton.isEnabled = true
-                        result.onSuccess {
-                            showMessage("已请求重启 SystemUI")
-                        }.onFailure {
-                            showMessage("重启失败：${it.message ?: it.javaClass.simpleName}")
-                        }
-                    }
-                }.onFailure {
-                    binding.restartSystemUiButton.isEnabled = true
-                    showMessage("重启前配置镜像失败：${it.message ?: it.javaClass.simpleName}")
-                }
-            }
+            showRestartConfirmDialog()
         }
-        binding.openGithubButton.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(ModuleInfo.PROJECT_URL)))
+    }
+
+    private fun showRestartConfirmDialog() {
+        val dialog = MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_OStatus_Dialog)
+            .setTitle(R.string.dialog_restart_title)
+            .setMessage(R.string.dialog_restart_message)
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .setPositiveButton(R.string.dialog_confirm_restart) { _, _ ->
+                performRestartSystemUi()
+            }
+            .create()
+        val background = MaterialShapeDrawable(
+            ShapeAppearanceModel.builder(
+                this,
+                0,
+                R.style.ShapeAppearanceOverlay_OStatus_Dialog
+            ).build()
+        ).apply {
+            fillColor = ColorStateList.valueOf(
+                ContextCompat.getColor(this@MainActivity, R.color.colorSurfaceCard)
+            )
+            initializeElevationOverlay(this@MainActivity)
+        }
+        dialog.window?.setBackgroundDrawable(background)
+        dialog.show()
+    }
+
+    private fun performRestartSystemUi() {
+        binding.restartSystemUiButton.isEnabled = false
+        mirrorToRemoteStore(showErrors = false) { mirrorResult ->
+            mirrorResult.onSuccess {
+                SystemUiControl.restartSystemUi { result ->
+                    binding.restartSystemUiButton.isEnabled = true
+                    result.onSuccess {
+                        showMessage("已请求重启 SystemUI")
+                    }.onFailure {
+                        showMessage("重启失败：${it.message ?: it.javaClass.simpleName}")
+                    }
+                }
+            }.onFailure {
+                binding.restartSystemUiButton.isEnabled = true
+                showMessage("重启前配置镜像失败：${it.message ?: it.javaClass.simpleName}")
+            }
         }
     }
 
@@ -195,8 +195,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshSettingState() {
-        val moduleEnabled = binding.moduleEnableSwitch.isChecked
-        binding.iconEnhancementSwitch.isEnabled = moduleEnabled
+        binding.iconEnhancementSwitch.isEnabled = true
     }
 
     private fun refreshRuleState() {
@@ -220,11 +219,11 @@ class MainActivity : AppCompatActivity() {
         binding.moduleStatusText.text = when {
             !ConfigData.isModuleEnabled -> "模块已关闭"
             currentService == null && cachedFramework.hasConnectionRecord && missingScopes.isEmpty() ->
-                "模块已激活，当前只是设置页没有连上框架服务"
+                "模块已激活，设置页暂未连上框架服务"
             currentService == null && cachedFramework.hasConnectionRecord ->
-                "模块上次已连接框架，但作用域仍不完整：${missingScopes.joinToString()}"
+                "模块上次已连接框架，但当前仍缺少作用域：${missingScopes.joinToString()}"
             currentService == null -> "未连接 modern Xposed 框架"
-            missingScopes.isNotEmpty() -> "模块已连接，但缺少作用域：${missingScopes.joinToString()}"
+            missingScopes.isNotEmpty() -> "模块已连接，但仍缺少作用域：${missingScopes.joinToString()}"
             else -> "模块已连接，重启 SystemUI 后按当前配置生效"
         }
 
@@ -249,7 +248,11 @@ class MainActivity : AppCompatActivity() {
             "授权作用域：${if (grantedScopes.isEmpty()) "无" else grantedScopes.joinToString()}"
         }
 
-        binding.requestScopeButton.isEnabled = currentService != null && missingScopes.isNotEmpty()
+        val isReady = ConfigData.isModuleEnabled && missingScopes.isEmpty() &&
+            (currentService != null || cachedFramework.hasConnectionRecord)
+        binding.moduleStatusIndicator.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            getColor(if (isReady) com.fankes.coloros.notify.R.color.colorStatusReady else com.fankes.coloros.notify.R.color.colorStatusIdle)
+        )
     }
 
     private fun showRestartHint() {

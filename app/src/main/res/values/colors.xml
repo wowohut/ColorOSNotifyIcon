@@ -1,7 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimaryAccent">#656565</color>
+    <color name="colorPrimaryAccent">#007AFF</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="trans">#00000000</color>
+
+    <color name="colorThemeBackground">#F5F7FA</color>
+    <color name="colorSurfaceCard">#FFFFFFFF</color>
+    <color name="colorCardStroke">#E7EBF1</color>
+
+    <color name="colorTextPrimary">#111827</color>
+    <color name="colorTextSecondary">#667085</color>
+    <color name="colorTextMuted">#98A2B3</color>
+    <color name="colorIconButtonTint">#444444</color>
+
+    <color name="colorPrimaryActionBackground">#FF1C1C1E</color>
+    <color name="colorPrimaryActionText">#FFFFFFFF</color>
+    <color name="colorSecondaryActionBackground">#FFF2F2F7</color>
+    <color name="colorSecondaryActionText">#FF3A3A3C</color>
+    <color name="colorDialogPositiveAction">#FFFF3B30</color>
+
+    <color name="colorSwitchTrackOff">#D5DBE5</color>
+    <color name="colorSwitchTrackOn">#FFE5F0FF</color>
+    <color name="colorSwitchThumbOn">#FF007AFF</color>
+    <color name="colorSwitchThumbOff">#FFFFFFFF</color>
+    <color name="colorStatusReady">#10B981</color>
+    <color name="colorStatusIdle">#D0D5DD</color>
+
+    <color name="colorTextGray">@color/colorTextPrimary</color>
+    <color name="colorTextDark">@color/colorTextSecondary</color>
 </resources>
