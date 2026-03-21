@@ -3,19 +3,13 @@ package com.fankes.coloros.notify.hook
 import android.app.Notification
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.PorterDuff
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import android.util.TypedValue
 import android.widget.ImageView
-import com.fankes.coloros.notify.R
 import com.fankes.coloros.notify.bean.IconDataBean
 import com.fankes.coloros.notify.const.ModuleInfo
 import com.fankes.coloros.notify.const.PackageName
@@ -68,7 +62,7 @@ class ModuleMain : XposedModule() {
         systemUiRules = ConfigData.parseRules(rulesJson).associateBy { it.packageName }
         emitLog(
             Log.INFO,
-            "SystemUI 配置已加载：module=${systemUiSnapshot.moduleEnabled}, enhancement=${systemUiSnapshot.iconEnhancementEnabled}, md3=${systemUiSnapshot.md3StyleEnabled}, corner=${systemUiSnapshot.iconCornerDp}, rules=${systemUiRules.size}"
+            "SystemUI 配置已加载：module=${systemUiSnapshot.moduleEnabled}, enhancement=${systemUiSnapshot.iconEnhancementEnabled}, rules=${systemUiRules.size}"
         )
         val mirroredRuleCount = remotePrefsOrNull()?.getInt(ConfigData.KEY_RULES_COUNT, 0) ?: 0
         if (rulesJson.isBlank() && mirroredRuleCount > 0) {
@@ -211,33 +205,6 @@ class ModuleMain : XposedModule() {
         return true
     }
 
-    private fun applyNotificationIcon(iconView: ImageView?, sbn: StatusBarNotification?) {
-        if (iconView == null || sbn == null) return
-        val snapshot = systemUiSnapshot
-        if (!snapshot.moduleEnabled || !snapshot.iconEnhancementEnabled) {
-            clearCustomStyle(iconView)
-            return
-        }
-        val target = resolveTargetIcon(iconView.context, sbn) ?: run {
-            clearCustomStyle(iconView)
-            return
-        }
-        if (snapshot.md3StyleEnabled) {
-            applyMd3Style(
-                iconView = iconView,
-                drawable = target.drawable,
-                chipColor = resolveChipColor(iconView.context, target.explicitColor, target.notificationColor),
-                cornerDp = snapshot.iconCornerDp,
-            )
-        } else {
-            applyClassicTint(
-                iconView = iconView,
-                drawable = target.drawable,
-                tintColor = resolveMonoTint(iconView.context, target.explicitColor, target.notificationColor),
-            )
-        }
-    }
-
     private fun resolveTargetIcon(context: Context, sbn: StatusBarNotification): ResolvedIcon? {
         val packageName = sbn.packageName.orEmpty()
         val preservedOriginalIcon = runCatching {
@@ -267,10 +234,7 @@ class ModuleMain : XposedModule() {
             else -> targetDrawable
         }
         return ResolvedIcon(
-            drawable = targetDrawable,
             statusBarDrawable = statusBarDrawable,
-            explicitColor = if (shouldUseRule) rule?.iconColor ?: 0 else 0,
-            notificationColor = sbn.notification.color,
             usesRule = shouldUseRule,
             statusBarBitmap = statusBarBitmap,
             statusBarReplacementIcon = when {
@@ -281,71 +245,6 @@ class ModuleMain : XposedModule() {
             shouldOverrideStatusBar = shouldUseRule || shouldUsePreservedOriginal,
         )
     }
-
-    private fun applyMd3Style(iconView: ImageView, drawable: Drawable, chipColor: Int, cornerDp: Int) {
-        val density = iconView.resources.displayMetrics.density
-        val cornerRadius = cornerDp.coerceIn(0, 24) * density
-        val padding = (2 * density).toInt().coerceAtLeast(0)
-        iconView.setImageDrawable(drawable)
-        iconView.background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            this.cornerRadius = cornerRadius
-            setColor(chipColor)
-        }
-        iconView.setColorFilter(resolveGlyphTint(iconView.context), PorterDuff.Mode.SRC_IN)
-        iconView.setPadding(padding, padding, padding, padding)
-        iconView.clipToOutline = false
-        iconView.setTag(R.id.tag_notify_icon_customized, true)
-    }
-
-    private fun applyClassicTint(iconView: ImageView, drawable: Drawable, tintColor: Int) {
-        iconView.setImageDrawable(drawable)
-        iconView.background = null
-        iconView.setColorFilter(tintColor, PorterDuff.Mode.SRC_IN)
-        iconView.setPadding(0, 0, 0, 0)
-        iconView.clipToOutline = true
-        iconView.setTag(R.id.tag_notify_icon_customized, true)
-    }
-
-    private fun clearCustomStyle(iconView: ImageView) {
-        if (iconView.getTag(R.id.tag_notify_icon_customized) != true) return
-        iconView.background = null
-        iconView.clearColorFilter()
-        iconView.setPadding(0, 0, 0, 0)
-        iconView.clipToOutline = true
-        iconView.setTag(R.id.tag_notify_icon_customized, false)
-    }
-
-    private fun resolveChipColor(context: Context, explicitColor: Int, notificationColor: Int): Int {
-        if (isUsableColor(explicitColor)) return explicitColor
-        if (isUsableColor(notificationColor)) return notificationColor
-        val fallback = if (isDarkMode(context)) 0xFF707173.toInt() else 0xFF5A6EEA.toInt()
-        return resolveThemeColor(context, android.R.attr.colorAccent, fallback)
-    }
-
-    private fun resolveMonoTint(context: Context, explicitColor: Int, notificationColor: Int): Int {
-        if (isUsableColor(explicitColor)) return explicitColor
-        if (isUsableColor(notificationColor)) return notificationColor
-        return if (isDarkMode(context)) 0xFFDCDCDC.toInt() else 0xFF707173.toInt()
-    }
-
-    private fun resolveGlyphTint(context: Context): Int =
-        if (isDarkMode(context)) 0xFFDCDCDC.toInt() else Color.WHITE
-
-    private fun resolveThemeColor(context: Context, attr: Int, fallback: Int): Int {
-        val typedValue = TypedValue()
-        if (!context.theme.resolveAttribute(attr, typedValue, true)) return fallback
-        return when {
-            typedValue.resourceId != 0 -> runCatching { context.getColor(typedValue.resourceId) }.getOrDefault(fallback)
-            typedValue.data != 0 -> typedValue.data
-            else -> fallback
-        }
-    }
-
-    private fun isDarkMode(context: Context): Boolean =
-        (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-
-    private fun isUsableColor(color: Int): Boolean = color != 0 && Color.alpha(color) != 0
 
     private fun remotePrefsOrNull(): SharedPreferences? = runCatching {
         getRemotePreferences(ConfigData.GROUP_CONFIG)
@@ -474,10 +373,7 @@ class ModuleMain : XposedModule() {
     }
 
     private data class ResolvedIcon(
-        val drawable: Drawable,
         val statusBarDrawable: Drawable,
-        val explicitColor: Int,
-        val notificationColor: Int,
         val usesRule: Boolean,
         val statusBarBitmap: Bitmap?,
         val statusBarReplacementIcon: Icon?,

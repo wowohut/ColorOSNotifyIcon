@@ -10,11 +10,11 @@ object ConfigData {
     const val GROUP_CONFIG = "config"
     const val RULES_FILE_NAME = "rules.json"
     private const val PREFS_NAME = GROUP_CONFIG
+    private const val LEGACY_KEY_MD3_STYLE_ENABLED = "md3_style_enabled"
+    private const val LEGACY_KEY_ICON_CORNER_DP = "icon_corner_dp"
 
     const val KEY_MODULE_ENABLED = "module_enabled"
     const val KEY_ICON_ENHANCEMENT_ENABLED = "icon_enhancement_enabled"
-    const val KEY_MD3_STYLE_ENABLED = "md3_style_enabled"
-    const val KEY_ICON_CORNER_DP = "icon_corner_dp"
     const val KEY_RULES_JSON = "rules_json"
     const val KEY_RULES_COUNT = "rules_count"
     const val KEY_RULES_UPDATED_AT = "rules_updated_at"
@@ -29,8 +29,6 @@ object ConfigData {
     data class HookSnapshot(
         val moduleEnabled: Boolean = true,
         val iconEnhancementEnabled: Boolean = true,
-        val md3StyleEnabled: Boolean = true,
-        val iconCornerDp: Int = 15,
     )
 
     data class FrameworkSnapshot(
@@ -45,6 +43,7 @@ object ConfigData {
 
     fun initialize(context: Context) {
         if (!::appContext.isInitialized) appContext = context.applicationContext
+        cleanupLegacyStyleKeys()
     }
 
     private val prefs: SharedPreferences
@@ -60,14 +59,6 @@ object ConfigData {
     var isIconEnhancementEnabled: Boolean
         get() = prefs.getBoolean(KEY_ICON_ENHANCEMENT_ENABLED, true)
         set(value) = prefs.edit().putBoolean(KEY_ICON_ENHANCEMENT_ENABLED, value).apply()
-
-    var isMd3StyleEnabled: Boolean
-        get() = prefs.getBoolean(KEY_MD3_STYLE_ENABLED, true)
-        set(value) = prefs.edit().putBoolean(KEY_MD3_STYLE_ENABLED, value).apply()
-
-    var iconCornerDp: Int
-        get() = prefs.getInt(KEY_ICON_CORNER_DP, 15)
-        set(value) = prefs.edit().putInt(KEY_ICON_CORNER_DP, value.coerceIn(0, 24)).apply()
 
     var rulesJson: String
         get() = prefs.getString(KEY_RULES_JSON, "").orEmpty()
@@ -117,8 +108,8 @@ object ConfigData {
     fun mirrorTo(remotePrefs: SharedPreferences): Boolean = remotePrefs.edit()
         .putBoolean(KEY_MODULE_ENABLED, isModuleEnabled)
         .putBoolean(KEY_ICON_ENHANCEMENT_ENABLED, isIconEnhancementEnabled)
-        .putBoolean(KEY_MD3_STYLE_ENABLED, isMd3StyleEnabled)
-        .putInt(KEY_ICON_CORNER_DP, iconCornerDp)
+        .remove(LEGACY_KEY_MD3_STYLE_ENABLED)
+        .remove(LEGACY_KEY_ICON_CORNER_DP)
         .putInt(KEY_RULES_COUNT, rulesCount)
         .putLong(KEY_RULES_UPDATED_AT, rulesUpdatedAt)
         .commit()
@@ -128,8 +119,6 @@ object ConfigData {
         return HookSnapshot(
             moduleEnabled = remotePrefs.getBoolean(KEY_MODULE_ENABLED, true),
             iconEnhancementEnabled = remotePrefs.getBoolean(KEY_ICON_ENHANCEMENT_ENABLED, true),
-            md3StyleEnabled = remotePrefs.getBoolean(KEY_MD3_STYLE_ENABLED, true),
-            iconCornerDp = remotePrefs.getInt(KEY_ICON_CORNER_DP, 15).coerceIn(0, 24),
         )
     }
 
@@ -146,5 +135,13 @@ object ConfigData {
                 }
             }
         }
+    }
+
+    private fun cleanupLegacyStyleKeys() {
+        if (!prefs.contains(LEGACY_KEY_MD3_STYLE_ENABLED) && !prefs.contains(LEGACY_KEY_ICON_CORNER_DP)) return
+        prefs.edit()
+            .remove(LEGACY_KEY_MD3_STYLE_ENABLED)
+            .remove(LEGACY_KEY_ICON_CORNER_DP)
+            .apply()
     }
 }
