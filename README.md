@@ -1,16 +1,5 @@
 # ColorOS 通知图标增强
 
-[![GitHub license](https://img.shields.io/github/license/fankes/ColorOSNotifyIcon?color=blue&style=flat-square)](https://github.com/fankes/ColorOSNotifyIcon/blob/master/LICENSE)
-[![GitHub CI](https://img.shields.io/github/actions/workflow/status/fankes/ColorOSNotifyIcon/commit_ci.yml?label=CI%20builds&style=flat-square)](https://github.com/fankes/ColorOSNotifyIcon/actions/workflows/commit_ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/fankes/ColorOSNotifyIcon?display_name=release&logo=github&color=green&style=flat-square)](https://github.com/fankes/ColorOSNotifyIcon/releases)
-![GitHub all releases](https://img.shields.io/github/downloads/fankes/ColorOSNotifyIcon/total?label=downloads&style=flat-square)
-![GitHub all releases](https://img.shields.io/github/downloads/Xposed-Modules-Repo/com.fankes.coloros.notify/total?label=LSPosed%20downloads&labelColor=F48FB1&style=flat-square)
-
-[![Telegram CI](https://img.shields.io/badge/CI%20builds-Telegram-blue.svg?logo=telegram&style=flat-square)](https://t.me/ColorOSNotifyIcon_CI)
-[![Telegram](https://img.shields.io/badge/discussion-Telegram-blue.svg?logo=telegram&style=flat-square)](https://t.me/XiaofangInternet)
-[![QQ](https://img.shields.io/badge/discussion-QQ-blue.svg?logo=tencent-qq&logoColor=red&style=flat-square)](https://qm.qq.com/cgi-bin/qm/qr?k=dp2h5YhWiga9WWb_Oh7kSHmx01X8I8ii&jump_from=webapi&authKey=Za5CaFP0lk7+Zgsk2KpoBD7sSaYbeXbsDgFjiWelOeH4VSionpxFJ7V0qQBSqvFM)
-[![QQ 频道](https://img.shields.io/badge/discussion-QQ%20频道-blue.svg?logo=tencent-qq&logoColor=red&style=flat-square)](https://pd.qq.com/s/44gcy28h)
-
 <img src="img-src/icon.png" width = "100" height = "100" alt="LOGO"/>
 
 Optimize notification icons for ColorOS and adapt to native notification icon specifications.
@@ -21,54 +10,60 @@ Optimize notification icons for ColorOS and adapt to native notification icon sp
 
 This project will not be adapted i18n, please stay tuned for my new projects in the future.
 
-## 项目迁移公告
+## Fork 维护版变更说明
 
-由于本人同时维护 **MIUI** 与 **ColorOS** 两个系统需要同时维护两个模块，十分不方便，所以我决定在后期逐渐合并两个项目并解耦合为一个新项目并计划适配更多系统与设备，例如原生与类原生系统。
+> 本仓库目前为 **fork 长期维护版**。原作者已停止更新，此分支继续在保留原始开源协议、版权信息与致谢名单的前提下进行适配与维护。
 
-在新的项目确定后，会在这里添加新项目的链接，届时我会终止维护这个项目并建议大家转移到新项目。
+### 当前维护目标
 
-## 适配说明
+- **仅支持 ColorOS 16 / Android 16（API 36）**
+- **仅支持 modern libxposed API 101 / LSPosed**
+- **仅优化状态栏图标**，通知中心保持 **ColorOS 原版**
+- 以**低耗电、少日志、少热路径反射**为优先目标
 
-- 此模块仅支持 **LSPosed** (作用域“系统界面”)、**~~EdXposed(随时停止支持)~~**、不支持**太极、无极**
+### 与原版的主要差异
 
-- 目前仅在 ColorOS 12、12.1、13 for OnePlus 上测试通过，如有问题请提交 `issues`
+- 移除了 legacy Xposed / rovo89 API / YukiHookAPI 兼容层
+- 重构为 **modern libxposed 101** 单入口实现
+- 作用域固定为：`system`、`com.android.systemui`
+- 不再提供旧版 ColorOS / Android 分支兼容逻辑
+- 不再提供通知中心样式改写、MD3 底板、圆角等旧功能
+- 所有设置修改后统一通过**重启 SystemUI** 生效，不做热更新
 
-- 建议在不低于 ColorOS 11 的版本上使用
+### 当前图标逻辑
 
-## 注意事项
+- **状态栏图标**：由模块接管，优先使用在线规则与原始通知小图标进行优化
+- **通知中心图标**：保持 ColorOS 原版行为，不再额外改写
+- 对于无规则应用，会尽量回退到原始 `smallIcon`，避免被系统强制改成不合适的形状
 
-由于 ColorOS 15 版本的系统性通知图标行为变更，系统强制在通知图标初始化阶段就将图标强制替换为 APP 彩色图标进行破坏，所以目前加入了 “系统框架”
-作用域，如果在模块安装后没有自动勾选此作用域，请手动进行勾选并重新启动系统以修复此破坏行为，ColorOS 15 以下版本的系统无需勾选。
+### 使用说明
 
-感谢 [Nep-Timeline](https://github.com/Nep-Timeline) 提供的解决方案。
+1. 在 LSPosed 中启用模块
+2. 勾选作用域：`system`、`com.android.systemui`
+3. 打开 App 同步规则
+4. 点击“重启 SystemUI”使设置生效
+
+> 若本次更新包含 `system_server` 逻辑调整，首次更新后建议完整重启一次系统，以确保新 Hook 全部生效。
+
+### 规则来源
+
+本模块继续使用 `AndroidNotifyIconAdapt` 规则仓库：
+
+- [Android 通知图标规范适配计划](https://github.com/fankes/AndroidNotifyIconAdapt)
+- [ColorOS 规则](https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/OS/ColorOS/NotifyIconsSupportConfig.json)
+- [APP 规则](https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/APP/NotifyIconsSupportConfig.json)
 
 ## 历史背景
 
-继 MIUI 之后的第二大系统 ColorOS 虽然支持原生通知图标，但是第三方推送五颜六色的图标系统并没有做适配，甚至系统自己的图标都是彩色的，极其不友好。
+ColorOS 虽然支持原生通知图标规范，但系统与第三方推送长期存在彩色图标、风格不统一、系统强制替换小图标等问题，影响状态栏一致性与可读性。
 
-而且从 ColorOS 12 开始，原生图标丢失了着色属性，这也是一种对原生 Android 生态的破坏。
+本 fork 版本选择收敛目标：只处理**状态栏图标优化**，尽量减少对通知中心与 SystemUI 热路径的侵入，以换取更稳定的行为和更低的额外功耗。
 
 ## 贡献通知图标优化名单
 
 此项目是 `AndroidNotifyIconAdapt` 项目的一部分，详情请参考下方。
 
 - [Android 通知图标规范适配计划](https://github.com/fankes/AndroidNotifyIconAdapt)
-
-## 发行渠道
-
-| <img src="https://avatars.githubusercontent.com/in/15368?s=64&v=4" width = "30" height = "30" alt="LOGO"/> | [GitHub CI](https://github.com/fankes/ColorOSNotifyIcon/actions/workflows/commit_ci.yml) | CI 自动构建 (测试版) |
-|------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------|---------------|
-
-| <img src="https://github.com/peter-iakovlev/Telegram/blob/public/Icon.png?raw=true" width = "30" height = "30" alt="LOGO"/> | [Telegram CI 频道](https://t.me/ColorOSNotifyIcon_CI) | CI 自动构建 (测试版) |
-|-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------|---------------|
-
-| <img src="https://avatars.githubusercontent.com/in/15368?s=64&v=4" width = "30" height = "30" alt="LOGO"/> | [GitHub Releases](https://github.com/fankes/ColorOSNotifyIcon/releases) | 正式版 (稳定版) |
-|------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|-----------|
-
-| <img src="https://avatars.githubusercontent.com/u/78217009?s=200&v=4?raw=true" width = "30" height = "30" alt="LOGO"/> | [Xposed-Modules-Repo](https://github.com/Xposed-Modules-Repo/com.fankes.coloros.notify/releases) | 正式版 (稳定版) |
-|------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------|-----------|
-
-本模块发布地址仅限于上述所列出的地址，从其他非正规渠道下载到的版本或对您造成任何影响均与我们无关。
 
 ## 注意事项
 
@@ -82,21 +77,6 @@ This project will not be adapted i18n, please stay tuned for my new projects in 
 - 不得额外施加限制来限制他人对本软件的自由使用
 
 <h3>3.&nbsp;我们鼓励在遵守 AGPL 3.0 条款的前提下进行自由传播和改进，但请尊重作者署名权，勿冒用原作者名义。</h3>
-
-## 项目推广
-
-<!--suppress HtmlDeprecatedAttribute -->
-<div align="center">
-    <h2>嘿，还请君留步！👋</h2>
-    <h3>这里有 Android 开发工具、UI 设计、Gradle 插件、Xposed 模块和实用软件等相关项目。</h3>
-    <h3>如果下方的项目能为你提供帮助，不妨为我点个 star 吧！</h3>
-    <h3>所有项目免费、开源，遵循对应开源许可协议。</h3>
-    <h1><a href="https://github.com/fankes/fankes/blob/main/project-promote/README-zh-CN.md">→ 查看更多关于我的项目，请点击这里 ←</a></h1>
-</div>
-
-## Star History
-
-![Star History Chart](https://api.star-history.com/svg?repos=fankes/ColorOSNotifyIcon&type=Date)
 
 ## 隐私政策
 
@@ -123,6 +103,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
 
-Powered by [YukiHookAPI](https://github.com/HighCapable/YukiHookAPI)
+Powered by [modern libxposed API](https://github.com/libxposed/api)
 
 版权所有 © 20174 Fankes Studio(qzmmcn@163.com)
