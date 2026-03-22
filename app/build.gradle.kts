@@ -28,8 +28,14 @@ android {
     buildTypes {
         all { signingConfig = signingConfigs.getByName("universal") }
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // Release 开启 R8 shrink（压缩/裁剪）+ 资源裁剪；混淆已在 proguard-rules.pro 用 -dontobfuscate 禁用
+            // 仍需 keep Xposed 入口类名，避免 shrink 裁剪掉模块入口导致“模块不生效”
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {

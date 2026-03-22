@@ -104,6 +104,20 @@ fabric.properties
 .gradle
 build/
 
+# Temporary（本项目调试/抓取/截图等产生的临时文件）
+.tmp*
+
+# APK/AAB 构建产物（Android Studio/Gradle 生成的安装包与签名旁路文件）
+*.apk
+*.aab
+*.apks
+*.idsig
+
+# Android Studio “Build APK(s)” 可能输出到 app/release（不在 build/ 下）
+app/release/
+app/debug/
+app/profile/
+
 # Mkdocs temporary serving folder
 docs-gen
 site
