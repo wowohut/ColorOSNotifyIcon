@@ -8,6 +8,7 @@ import com.fankes.coloros.notify.data.ConfigData
 import io.github.libxposed.service.XposedService
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.LinkedHashMap
 import java.util.concurrent.Executors
 
 object RemoteConfigSyncTool {
@@ -20,15 +21,32 @@ object RemoteConfigSyncTool {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
+    private val syncLock = Any()
+    private val pendingCallbacks = LinkedHashMap<Long, MutableList<(Result<SyncResult>) -> Unit>>()
 
     fun syncAsync(
         service: XposedService,
         onResult: ((Result<SyncResult>) -> Unit)? = null,
     ) {
+        val configUpdatedAt = ConfigData.localConfigUpdatedAt
+        synchronized(syncLock) {
+            if (pendingCallbacks.containsKey(configUpdatedAt)) {
+                if (onResult != null) {
+                    pendingCallbacks.getOrPut(configUpdatedAt) { mutableListOf() } += onResult
+                }
+                return
+            }
+            pendingCallbacks[configUpdatedAt] = mutableListOf<(Result<SyncResult>) -> Unit>().apply {
+                if (onResult != null) add(onResult)
+            }
+        }
         executor.execute {
             val result = syncBlocking(service)
-            if (onResult != null) {
-                mainHandler.post { onResult(result) }
+            val callbacks = synchronized(syncLock) {
+                pendingCallbacks.remove(configUpdatedAt).orEmpty()
+            }
+            if (callbacks.isNotEmpty()) {
+                mainHandler.post { callbacks.forEach { it(result) } }
             }
         }
     }
