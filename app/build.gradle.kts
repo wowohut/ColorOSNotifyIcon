@@ -44,7 +44,6 @@ android {
     }
     buildFeatures {
         buildConfig = true
-        viewBinding = true
         compose = true
     }
     packaging {
@@ -76,14 +75,13 @@ dependencies {
     implementation(libs.libxposed.service)
     implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.material)
     
     // Compose Dependencies
     val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
+    compileOnly(composeBom)
     implementation(libs.compose.ui)
-    implementation(libs.compose.ui.tooling.preview)
+    compileOnly(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
     implementation(libs.activity.compose)

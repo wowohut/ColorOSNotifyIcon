@@ -1,15 +1,5 @@
 <resources>
-    <style name="Theme.ColorOSNotifyIcon" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/colorPrimaryAccent</item>
-        <item name="colorPrimaryVariant">@color/colorPrimaryAccent</item>
-        <item name="colorOnPrimary">@color/white</item>
-        <item name="colorSecondary">@color/colorPrimaryAccent</item>
-        <item name="colorSecondaryVariant">@color/colorPrimaryAccent</item>
-        <item name="colorOnSecondary">@color/white</item>
-        <item name="colorSurface">@color/colorSurfaceCard</item>
-        <item name="colorOnSurface">@color/colorTextPrimary</item>
-        <item name="colorSurfaceVariant">@color/colorThemeBackground</item>
-        <item name="colorOutline">@color/colorCardStroke</item>
+    <style name="Theme.ColorOSNotifyIcon" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/colorThemeBackground</item>
         <item name="android:statusBarColor">@color/colorThemeBackground</item>
         <item name="android:navigationBarColor">@color/colorThemeBackground</item>

@@ -1,32 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimaryAccent">#3B82F6</color>
-    <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
-    <color name="trans">#00000000</color>
-
     <color name="colorThemeBackground">#0F1115</color>
-    <color name="colorSurfaceCard">#171A20</color>
-    <color name="colorCardStroke">#262B34</color>
-
-    <color name="colorTextPrimary">#F3F5F8</color>
-    <color name="colorTextSecondary">#A5AFBF</color>
-    <color name="colorTextMuted">#7D8797</color>
-    <color name="colorIconButtonTint">#FFD3D7DE</color>
-
-    <color name="colorPrimaryActionBackground">#FFF3F5F8</color>
-    <color name="colorPrimaryActionText">#FF111827</color>
-    <color name="colorSecondaryActionBackground">#FF232833</color>
-    <color name="colorSecondaryActionText">#FFF3F5F8</color>
-    <color name="colorDialogPositiveAction">#FFFF6B63</color>
-
-    <color name="colorSwitchTrackOff">#353D49</color>
-    <color name="colorSwitchTrackOn">#FF203B64</color>
-    <color name="colorSwitchThumbOn">#FF5EA2FF</color>
-    <color name="colorSwitchThumbOff">#FFFFFFFF</color>
-    <color name="colorStatusReady">#34D399</color>
-    <color name="colorStatusIdle">#475467</color>
-
-    <color name="colorTextGray">@color/colorTextPrimary</color>
-    <color name="colorTextDark">@color/colorTextSecondary</color>
 </resources>
