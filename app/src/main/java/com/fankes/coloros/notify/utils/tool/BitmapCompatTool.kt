@@ -13,7 +13,6 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.VectorDrawable
 import android.util.ArrayMap
 import androidx.core.graphics.drawable.toBitmap
-import com.fankes.coloros.notify.utils.factory.safeOfFalse
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -30,7 +29,13 @@ object BitmapCompatTool {
     private var tempCompactBitmapPaint: Paint? = null
     private val tempMatrix = Matrix()
 
-    fun isGrayscaleDrawable(drawable: Drawable) = safeOfFalse {
+    private inline fun safeFalse(block: () -> Boolean) = try {
+        block()
+    } catch (_: Exception) {
+        false
+    }
+
+    fun isGrayscaleDrawable(drawable: Drawable) = safeFalse {
         when (drawable) {
             is BitmapDrawable -> isGrayscaleBitmap(drawable.bitmap)
             is AnimationDrawable -> drawable.numberOfFrames > 0 && isGrayscaleBitmap(drawable.getFrame(0).toBitmap())

@@ -26,12 +26,6 @@ object FrameworkServiceBridge {
             XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
                 override fun onServiceBind(service: XposedService) {
                     currentService = service
-                    ConfigData.updateFrameworkSnapshot(
-                        frameworkName = service.frameworkName,
-                        frameworkVersion = service.frameworkVersion,
-                        apiVersion = service.apiVersion,
-                        scopes = service.scope,
-                    )
                     RemoteConfigSyncTool.syncIfPending(service)
                     notifyListeners(service)
                 }

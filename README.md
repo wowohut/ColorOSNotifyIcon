@@ -4,7 +4,7 @@
 
 基于 [ColorOS 通知图标增强](https://github.com/fankes/ColorOSNotifyIcon) 的精简重构版本，专注状态栏图标优化。
 
-为 ColorOS 优化通知图标以及适配原生通知图标规范，理论支持 OxygenOS 和 RealmeUI。
+为 ColorOS 优化通知图标并适配原生通知图标规范。
 
 ## For Non-Chinese Users
 
@@ -29,7 +29,8 @@ This project will not be adapted i18n, please stay tuned for my new projects in 
 - **优化图标尺寸**，新增出图前归一化处理（透明裁边 + 统一输出尺寸），修复部分在线规则图在状态栏显示过小的问题
 - 作用域固定为：`system`、`com.android.systemui`
 - 不再提供旧版 ColorOS / Android 分支兼容逻辑
-- 所有设置修改后统一通过 **重启 SystemUI** 生效，不做热更新（**第一次安装请同步规则，然后重启手机**）
+- App 仅保留 **规则同步** 与 **重启 SystemUI** 两个入口；模块启停统一交由 **LSPosed 管理器**
+- 所有规则修改后统一通过 **重启 SystemUI** 生效，不做热更新（**第一次安装请同步规则，然后重启手机**）
 
 ### 当前维护目标
 

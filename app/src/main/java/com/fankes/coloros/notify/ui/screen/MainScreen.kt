@@ -32,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -70,21 +69,18 @@ enum class SyncStage {
 
 data class MainScreenState(
     val currentService: XposedService? = null,
-    val frameworkSnapshot: ConfigData.FrameworkSnapshot = ConfigData.FrameworkSnapshot(),
-    val moduleEnabled: Boolean = false,
     val rulesCount: Int = 0,
     val rulesUpdatedAt: Long = 0L,
     val syncStage: SyncStage = SyncStage.Idle,
 ) {
+    val isModuleActive: Boolean
+        get() = currentService != null
+
     val grantedScopes: Set<String>
-        get() = (currentService?.scope ?: frameworkSnapshot.scopes).toSet()
+        get() = currentService?.scope?.toSet().orEmpty()
 
     val missingScopes: Set<String>
         get() = REQUIRED_SCOPES - grantedScopes
-
-    val isReady: Boolean
-        get() = moduleEnabled && missingScopes.isEmpty() &&
-            (currentService != null || frameworkSnapshot.hasConnectionRecord)
 
     val isSyncing: Boolean
         get() = syncStage != SyncStage.Idle
@@ -97,7 +93,6 @@ data class MainScreenState(
 @Composable
 fun MainScreen(
     state: MainScreenState,
-    onToggleModule: (Boolean, (String) -> Unit) -> Unit,
     onSyncRules: ((String) -> Unit) -> Unit,
     onRestartSystemUi: ((String) -> Unit) -> Unit,
 ) {
@@ -126,10 +121,6 @@ fun MainScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             StatusCard(state = state)
-            SettingsCard(
-                moduleEnabled = state.moduleEnabled,
-                onToggleModule = { checked -> onToggleModule(checked, ::showSnackbar) },
-            )
             RulesCard(
                 state = state,
                 onSyncRules = { onSyncRules(::showSnackbar) },
@@ -191,13 +182,18 @@ private fun Subtitle() {
 @Composable
 private fun StatusCard(state: MainScreenState) {
     val context = LocalContext.current
+    val indicatorColor = when {
+        !state.isModuleActive -> MaterialTheme.colorScheme.error
+        state.missingScopes.isNotEmpty() -> MaterialTheme.colorScheme.tertiary
+        else -> Color(0xFF10B981)
+    }
     InfoCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(if (state.isReady) Color(0xFF10B981) else Color(0xFFEF4444)),
+                    .background(indicatorColor),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -215,6 +211,7 @@ private fun StatusCard(state: MainScreenState) {
         Spacer(modifier = Modifier.height(12.dp))
         StatusRowText(frameworkStatusText(context, state))
         StatusRowText(scopeStatusText(context, state))
+        StatusRowText(stringResource(R.string.label_manager_control_hint))
         StatusRowText(
             stringResource(
                 R.string.label_module_version,
@@ -228,44 +225,6 @@ private fun StatusCard(state: MainScreenState) {
                 Build.VERSION.RELEASE,
                 Build.VERSION.SDK_INT,
             )
-        )
-    }
-}
-
-@Composable
-private fun SettingsCard(
-    moduleEnabled: Boolean,
-    onToggleModule: (Boolean) -> Unit,
-) {
-    InfoCard {
-        Text(
-            text = stringResource(R.string.section_core_settings),
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.label_enable_icon_enhancement),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Switch(
-                checked = moduleEnabled,
-                onCheckedChange = onToggleModule,
-            )
-        }
-        Text(
-            text = stringResource(R.string.hint_settings_sync),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            lineHeight = 18.sp,
         )
     }
 }
@@ -389,12 +348,7 @@ private fun moduleStatusText(
 ): String {
     val missingScopes = state.missingScopes.joinToString()
     return when {
-        !state.moduleEnabled -> context.getString(R.string.status_module_disabled)
-        state.currentService == null && state.frameworkSnapshot.hasConnectionRecord &&
-            state.missingScopes.isEmpty() -> context.getString(R.string.status_module_waiting_service)
-        state.currentService == null && state.frameworkSnapshot.hasConnectionRecord ->
-            context.getString(R.string.status_module_last_connected_missing_scopes, missingScopes)
-        state.currentService == null -> context.getString(R.string.status_module_not_connected)
+        !state.isModuleActive -> context.getString(R.string.status_module_not_connected)
         state.missingScopes.isNotEmpty() ->
             context.getString(R.string.status_module_connected_missing_scopes, missingScopes)
         else -> context.getString(R.string.status_module_connected_ready)
@@ -407,16 +361,7 @@ private fun frameworkStatusText(
 ): String {
     val currentService = state.currentService
     return if (currentService == null) {
-        if (state.frameworkSnapshot.hasConnectionRecord) {
-            context.getString(
-                R.string.status_framework_last_connected,
-                state.frameworkSnapshot.frameworkName,
-                state.frameworkSnapshot.frameworkVersion,
-                state.frameworkSnapshot.apiVersion,
-            )
-        } else {
-            context.getString(R.string.status_framework_not_connected)
-        }
+        context.getString(R.string.status_framework_not_connected)
     } else {
         context.getString(
             R.string.status_framework_connected,
@@ -431,23 +376,14 @@ private fun scopeStatusText(
     context: android.content.Context,
     state: MainScreenState,
 ): String {
-    val scopeLabel = if (state.grantedScopes.isEmpty()) {
+    return if (state.currentService == null) {
+        context.getString(R.string.status_scope_unavailable)
+    } else {
+        val scopeLabel = if (state.grantedScopes.isEmpty()) {
         context.getString(R.string.label_none)
     } else {
         state.grantedScopes.joinToString()
     }
-    return if (state.currentService == null) {
-        if (state.frameworkSnapshot.hasConnectionRecord) {
-            val cachedLabel = if (state.frameworkSnapshot.scopes.isEmpty()) {
-                context.getString(R.string.label_none)
-            } else {
-                state.frameworkSnapshot.scopes.joinToString()
-            }
-            context.getString(R.string.status_scope_last_detected, cachedLabel)
-        } else {
-            context.getString(R.string.status_scope_unavailable)
-        }
-    } else {
         context.getString(R.string.status_scope_granted, scopeLabel)
     }
 }
@@ -469,19 +405,10 @@ private fun MainScreenLightPreview() {
     OStatusTheme(darkTheme = false) {
         MainScreen(
             state = MainScreenState(
-                frameworkSnapshot = ConfigData.FrameworkSnapshot(
-                    frameworkName = "LSPosed",
-                    frameworkVersion = "1.9.3",
-                    apiVersion = 100,
-                    scopes = listOf(PackageName.SYSTEM_SCOPE),
-                    lastConnectedAt = 1742860800000L,
-                ),
-                moduleEnabled = true,
                 rulesCount = 128,
                 rulesUpdatedAt = 1742861100000L,
                 syncStage = SyncStage.Idle,
             ),
-            onToggleModule = { _, _ -> },
             onSyncRules = {},
             onRestartSystemUi = {},
         )
@@ -500,19 +427,10 @@ private fun MainScreenDarkPreview() {
     OStatusTheme(darkTheme = true) {
         MainScreen(
             state = MainScreenState(
-                frameworkSnapshot = ConfigData.FrameworkSnapshot(
-                    frameworkName = "LSPosed",
-                    frameworkVersion = "1.9.3",
-                    apiVersion = 100,
-                    scopes = listOf(PackageName.SYSTEM_SCOPE, PackageName.SYSTEM_UI),
-                    lastConnectedAt = 1742860800000L,
-                ),
-                moduleEnabled = true,
                 rulesCount = 256,
                 rulesUpdatedAt = 1742861400000L,
                 syncStage = SyncStage.MirroringRemote,
             ),
-            onToggleModule = { _, _ -> },
             onSyncRules = {},
             onRestartSystemUi = {},
         )
@@ -530,13 +448,10 @@ private fun MainScreenEmptyPreview() {
     OStatusTheme(darkTheme = false) {
         MainScreen(
             state = MainScreenState(
-                frameworkSnapshot = ConfigData.FrameworkSnapshot(),
-                moduleEnabled = false,
                 rulesCount = 0,
                 rulesUpdatedAt = 0L,
                 syncStage = SyncStage.Idle,
             ),
-            onToggleModule = { _, _ -> },
             onSyncRules = {},
             onRestartSystemUi = {},
         )

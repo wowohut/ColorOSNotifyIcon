@@ -34,7 +34,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ConfigData.initialize(applicationContext)
         refreshLocalState(currentService = FrameworkServiceBridge.getCurrentService())
 
         enableEdgeToEdge()
@@ -42,7 +41,6 @@ class MainActivity : ComponentActivity() {
             OStatusTheme {
                 MainScreen(
                     state = uiState,
-                    onToggleModule = ::toggleModuleEnabled,
                     onSyncRules = ::syncRules,
                     onRestartSystemUi = ::performRestartSystemUi,
                 )
@@ -53,35 +51,9 @@ class MainActivity : ComponentActivity() {
     private fun refreshLocalState(currentService: XposedService? = uiState.currentService) {
         uiState = uiState.copy(
             currentService = currentService,
-            frameworkSnapshot = ConfigData.readFrameworkSnapshot(),
-            moduleEnabled = ConfigData.isModuleEnabled && ConfigData.isIconEnhancementEnabled,
             rulesCount = ConfigData.rulesCount,
             rulesUpdatedAt = ConfigData.rulesUpdatedAt,
         )
-    }
-
-    private fun toggleModuleEnabled(checked: Boolean, onShowMessage: (String) -> Unit) {
-        ConfigData.isModuleEnabled = checked
-        ConfigData.isIconEnhancementEnabled = checked
-        refreshLocalState()
-
-        val currentService = uiState.currentService
-        if (currentService == null) {
-            onShowMessage(getString(R.string.message_settings_saved_local_pending_sync))
-            return
-        }
-        mirrorToRemoteStore(currentService) { result ->
-            val message = result.fold(
-                onSuccess = { getString(R.string.message_settings_saved_synced_restart) },
-                onFailure = {
-                    getString(
-                        R.string.message_settings_saved_mirror_failed,
-                        it.message ?: it.javaClass.simpleName
-                    )
-                },
-            )
-            onShowMessage(message)
-        }
     }
 
     private fun syncRules(onShowMessage: (String) -> Unit) {

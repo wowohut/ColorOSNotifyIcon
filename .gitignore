@@ -132,3 +132,6 @@ site
 
 # Mac OS
 .DS_Store
+
+# Documentation
+docs/

@@ -7,7 +7,6 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
-import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import android.widget.ImageView
@@ -50,13 +49,7 @@ class ModuleMain : XposedModule() {
     private val onceLogs = ConcurrentHashMap.newKeySet<String>()
     private var systemServerInstalled = false
     private var systemUiInstalled = false
-    private var systemServerSnapshot = ConfigData.defaultHookSnapshot()
-    private var systemUiSnapshot = ConfigData.defaultHookSnapshot()
     private var systemUiRules: Map<String, IconDataBean> = emptyMap()
-    @Volatile
-    private var systemServerConfigVersion = -1L
-    @Volatile
-    private var systemServerLastRefreshAt = 0L
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         emitLog(
@@ -67,9 +60,6 @@ class ModuleMain : XposedModule() {
 
     override fun onSystemServerStarting(param: SystemServerStartingParam) {
         if (systemServerInstalled) return
-        systemServerSnapshot = ConfigData.readHookSnapshot(remotePrefsOrNull())
-        systemServerConfigVersion = remotePrefsOrNull()?.getLong(ConfigData.KEY_CONFIG_UPDATED_AT, 0L) ?: 0L
-        systemServerLastRefreshAt = SystemClock.elapsedRealtime()
         systemServerInstalled = installSystemServerHook(param.classLoader)
     }
 
@@ -80,12 +70,11 @@ class ModuleMain : XposedModule() {
     }
 
     private fun reloadSystemUiConfig() {
-        systemUiSnapshot = ConfigData.readHookSnapshot(remotePrefsOrNull())
         val rulesJson = loadRemoteRulesJson()
         systemUiRules = ConfigData.parseRules(rulesJson).associateBy { it.packageName }
         emitLog(
             Log.INFO,
-            "SystemUI 配置已加载：module=${systemUiSnapshot.moduleEnabled}, enhancement=${systemUiSnapshot.iconEnhancementEnabled}, rules=${systemUiRules.size}"
+            "SystemUI 配置已加载：rules=${systemUiRules.size}"
         )
         val mirroredRuleCount = remotePrefsOrNull()?.getInt(ConfigData.KEY_RULES_COUNT, 0) ?: 0
         if (rulesJson.isBlank() && mirroredRuleCount > 0) {
@@ -109,10 +98,6 @@ class ModuleMain : XposedModule() {
         ) ?: return warnAndFalse("system.fix.method", "未找到 fixSmallIcon(Notification, String, String, boolean)")
 
         hook(fixSmallIconMethod).intercept { chain ->
-            refreshSystemServerConfigIfNeeded()
-            if (!systemServerSnapshot.moduleEnabled || !systemServerSnapshot.iconEnhancementEnabled) {
-                return@intercept chain.proceed()
-            }
             val notification = chain.args.firstOrNull() as? Notification
             val originalIcon = notification?.smallIcon
             if (notification != null && originalIcon != null) {
@@ -127,24 +112,9 @@ class ModuleMain : XposedModule() {
         }
         emitLog(
             Log.INFO,
-            "system_server Hook 已安装：fixSmallIcon 原始 smallIcon 缓存, module=${systemServerSnapshot.moduleEnabled}, enhancement=${systemServerSnapshot.iconEnhancementEnabled}"
+            "system_server Hook 已安装：fixSmallIcon 原始 smallIcon 缓存"
         )
         return true
-    }
-
-    private fun refreshSystemServerConfigIfNeeded(force: Boolean = false) {
-        val now = SystemClock.elapsedRealtime()
-        if (!force && now - systemServerLastRefreshAt < 1_000L) return
-        systemServerLastRefreshAt = now
-        val remotePrefs = remotePrefsOrNull() ?: return
-        val remoteVersion = remotePrefs.getLong(ConfigData.KEY_CONFIG_UPDATED_AT, 0L)
-        if (!force && remoteVersion == systemServerConfigVersion) return
-        systemServerSnapshot = ConfigData.readHookSnapshot(remotePrefs)
-        systemServerConfigVersion = remoteVersion
-        infoOnce(
-            "system.fix.reload",
-            "system_server 配置已刷新：module=${systemServerSnapshot.moduleEnabled}, enhancement=${systemServerSnapshot.iconEnhancementEnabled}"
-        )
     }
 
     private fun installSystemUiHooks(classLoader: ClassLoader): Boolean {
@@ -181,9 +151,6 @@ class ModuleMain : XposedModule() {
         }
 
         hook(members.iconManagerGetIconDescriptor).intercept { chain ->
-            if (!systemUiSnapshot.moduleEnabled || !systemUiSnapshot.iconEnhancementEnabled) {
-                return@intercept chain.proceed()
-            }
             val result = chain.proceed()
             val statusBarIcon = result ?: return@intercept result
             val notificationEntry = chain.args.getOrNull(0) ?: return@intercept statusBarIcon
@@ -220,7 +187,6 @@ class ModuleMain : XposedModule() {
         sbn: StatusBarNotification,
         currentStatusBarIcon: Icon?,
     ): Icon? {
-        if (!systemUiSnapshot.moduleEnabled || !systemUiSnapshot.iconEnhancementEnabled) return null
         val packageName = sbn.packageName.orEmpty()
         val preservedOriginalIcon = runCatching {
             BundleCompat.getParcelable(sbn.notification.extras, EXTRA_ORIGINAL_SMALL_ICON, Icon::class.java)
