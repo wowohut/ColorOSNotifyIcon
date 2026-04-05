@@ -3,7 +3,6 @@ package com.fankes.coloros.notify.hook
 import android.app.Notification
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
@@ -24,26 +23,11 @@ import java.io.FileInputStream
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.roundToInt
 
 class ModuleMain : XposedModule() {
 
     companion object {
         private const val EXTRA_ORIGINAL_SMALL_ICON = "com.fankes.coloros.notify.original_small_icon"
-
-        /**
-         * 状态栏规则图标归一化输出最小尺寸（px）。
-         *
-         * 说明：部分在线规则图标源尺寸为 40/50/72 px，ColorOS 16 的状态栏图标渲染路径可能不会对
-         * 小尺寸位图做「放大」，导致在高密度屏幕上视觉特别小，因此这里保证输出尺寸不低于一定阈值。
-         */
-        private const val STATUS_BAR_ICON_MIN_OUTPUT_SIZE_PX = 96
-
-        /** 状态栏图标内容尽可能贴近画布（更激进） */
-        private const val STATUS_BAR_ICON_CONTENT_SCALE = 1.0f
-
-        /** 透明裁边阈值（0~255），值越大裁得越狠 */
-        private const val STATUS_BAR_ICON_ALPHA_THRESHOLD = 16
     }
 
     private val onceLogs = ConcurrentHashMap.newKeySet<String>()
@@ -211,27 +195,7 @@ class ModuleMain : XposedModule() {
         val shouldUseRule = rule.isEnabledAll || !originalIsGrayscale
         if (!shouldUseRule) return null
         infoOnce("systemui.statusbar.rule.hit", "SystemUI 命中状态栏规则图标路径")
-        val outputSize = resolveStatusBarIconOutputSizePx(context, rule.iconBitmap)
-        val normalizedBitmap = runCatching {
-            BitmapCompatTool.normalizeIconBitmap(
-                bitmap = rule.iconBitmap,
-                outputSize = outputSize,
-                contentScale = STATUS_BAR_ICON_CONTENT_SCALE,
-                alphaThreshold = STATUS_BAR_ICON_ALPHA_THRESHOLD,
-            )
-        }.getOrElse { rule.iconBitmap }
-        return runCatching { Icon.createWithBitmap(normalizedBitmap) }.getOrNull()
-    }
-
-    private fun resolveStatusBarIconOutputSizePx(context: Context, source: Bitmap): Int {
-        val density = context.resources?.displayMetrics?.density ?: 0f
-        val dp24Px = (24f * density).roundToInt().coerceAtLeast(1)
-        return maxOf(
-            STATUS_BAR_ICON_MIN_OUTPUT_SIZE_PX,
-            dp24Px,
-            source.width,
-            source.height,
-        ).coerceIn(24, 192)
+        return runCatching { Icon.createWithBitmap(rule.iconBitmap) }.getOrNull()
     }
 
     private fun remotePrefsOrNull(): SharedPreferences? = runCatching {

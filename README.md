@@ -26,7 +26,7 @@ This project will not be adapted i18n, please stay tuned for my new projects in 
 
 - **迁移至 libxposed API 101**，移除 legacy Xposed / rovo89 API / YukiHookAPI 等历史兼容层
 - **去除冗余功能，仅优化状态栏图标**，通知中心保持 ColorOS 原版（修改通知中心图标反而突兀）
-- **优化图标尺寸**，新增出图前归一化处理（透明裁边 + 统一输出尺寸），修复部分在线规则图在状态栏显示过小的问题
+- **不再统一归一化在线规则图标**，恢复按在线规则原始图输出，避免部分图标在状态栏被额外放大
 - 作用域固定为：`system`、`com.android.systemui`
 - 不再提供旧版 ColorOS / Android 分支兼容逻辑
 - App 仅保留 **规则同步** 与 **重启 SystemUI** 两个入口；模块启停统一交由 **LSPosed 管理器**
@@ -40,9 +40,11 @@ This project will not be adapted i18n, please stay tuned for my new projects in 
 
 ### 图标逻辑
 
-- **状态栏图标**：由模块接管，优先使用在线规则与原始通知小图标进行优化
+- **状态栏图标**：由模块接管，但不是简单地“原始图标 / 在线规则 / ColorOS 原版”三选一，而是按条件决定是否替换
+- **原始灰度 `smallIcon` 优先恢复**：如果应用自己提供的原始 `smallIcon` 已经是灰度/单色图标，但 ColorOS 当前结果却变成了彩色图标，模块会优先恢复原始 `smallIcon`
+- **在线规则图标按条件覆盖**：如果命中在线规则且规则已启用，并且满足 `isEnabledAll = true` **或** 应用原始 `smallIcon` 不是灰度图标，则使用在线规则图标
+- **其余情况保留 ColorOS 当前结果**：如果既不需要恢复原始灰度 `smallIcon`，也没有命中可用的在线规则，模块不会继续强行改写，直接保留 ColorOS / SystemUI 当前计算出的状态栏图标
 - **通知中心图标**：保持 ColorOS 原版行为，不做额外改写
-- 对于无规则应用，会尽量回退到原始 `smallIcon`，避免被系统强制改成不合适的形状
 
 ## 使用说明
 
@@ -60,6 +62,8 @@ This project will not be adapted i18n, please stay tuned for my new projects in 
 - [Android 通知图标规范适配计划](https://github.com/fankes/AndroidNotifyIconAdapt)
 - [ColorOS 规则](https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/OS/ColorOS/NotifyIconsSupportConfig.json)
 - [APP 规则](https://raw.githubusercontent.com/fankes/AndroidNotifyIconAdapt/main/APP/NotifyIconsSupportConfig.json)
+
+规则同步时会先合并 **ColorOS 规则**，再合并 **APP 规则**；若同一包名在两份规则中重复出现，则以后合并的 **APP 规则** 为准。
 
 ## 历史背景
 
