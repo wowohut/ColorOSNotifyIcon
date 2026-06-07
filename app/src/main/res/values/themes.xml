@@ -1,8 +1,8 @@
 <resources>
     <style name="Theme.ColorOSNotifyIcon" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/colorThemeBackground</item>
-        <item name="android:statusBarColor">@color/colorThemeBackground</item>
-        <item name="android:navigationBarColor">@color/colorThemeBackground</item>
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>

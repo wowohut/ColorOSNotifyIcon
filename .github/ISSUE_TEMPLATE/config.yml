@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 通知图标规则适配
+    url: https://github.com/fankes/AndroidNotifyIconAdapt
+    about: 在线规则由 AndroidNotifyIconAdapt 维护，请在规则仓库反馈适配需求。

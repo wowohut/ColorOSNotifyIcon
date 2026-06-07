@@ -1,77 +1,67 @@
 name: 问题与 BUG 反馈
-description: 问题反馈必须使用此模板进行提交
+description: 反馈 OStatus 在当前支持环境下的问题
 labels: [bug]
-title: "[问题与 BUG 反馈] (在这里简要描述问题原因)"
+title: "[BUG] "
 body:
   - type: markdown
     attributes:
       value: |
-        ### 请在下方填写问题发生的具体原因和复现步骤。
-        
-        RealmeUI 与 OxygenOS ≥ 12 都是基于 ColorOS 进行修改而来，理论功能是通用的，请额外注意在下方选择正确的系统类型。
-        
-        我们只接受 ColorOS/RealmeUI/OxygenOS 正规官方版本系统，如果你正在使用官改(第三方修改版)请不要提交任何 BUG 与问题，我们无义务去解决，请自求多福。
-        
-        发生异常、崩溃、闪退或功能性问题，必须提交问题 Log (日志)，没有 Log 的 issues 将直接被关闭。
+        ### 请先确认环境范围
+
+        OStatus 当前仅维护 ColorOS 16 / Android 16（API 36）与 modern libxposed API 101 / LSPosed 环境。
+        旧版 Android、旧版 ColorOS、legacy Xposed API、非官方系统修改版不在当前维护范围内。
+
+        发生异常、崩溃、闪退或功能性问题时，请提供包含 `ColorOSNotifyIcon` 的 LSPosed 日志。
   - type: input
     attributes:
       label: 模块版本
-      description: 请填写当前使用的模块完整版本号，例如：**2.0**
+      description: 请填写当前使用的模块完整版本号，例如：1.103-r2
     validations:
       required: true
   - type: dropdown
     attributes:
       label: 系统类型
-      description: 请选择你使用的系统类型。
+      description: 当前仅维护 ColorOS 16。
       options:
         - ColorOS
-        - RealmeUI
-        - OxygenOS
     validations:
       required: true
   - type: input
     attributes:
       label: 系统版本
-      description: 这里填写当前的系统版本，以 ColorOS 举例：**ColorOS 12.1 LE2120_11_C.67**
+      description: 请填写完整系统版本号，例如：ColorOS 16.x / 机型固件版本
     validations:
       required: true
   - type: dropdown
     attributes:
       label: Android 版本
       options:
-        - 15
-        - 14
-        - 13
-        - 12L/12.1
-        - 12
-        - 11
-        - 10
-        - 9
+        - 16
     validations:
       required: true
   - type: input
     attributes:
-      label: Xposed 框架名称与版本号
-      description: 请填写当前使用的 Xposed 框架，例如：**LSPosed 1.8.4(次版本号)**
+      label: LSPosed / Xposed 框架版本
+      description: 请填写当前使用的框架名称、版本号以及 API 版本，例如：LSPosed xxx / API 101
     validations:
       required: true
   - type: input
     attributes:
       label: 与系统界面(系统 UI)同作用域的 Xposed 模块
       description: |
-        此模块的作用域为系统界面(系统 UI)，为确保非其它模块冲突造成的问题，请一定要填写当前你同时激活的相关模块。
+        本模块作用域包含 system 与 com.android.systemui。为排除冲突，请填写同作用域启用的其他模块。
         若没有，请直接在下方填写“无”。
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 详细描述问题发生的具体原因
-      description: 请在下方详细描述问题发生的具体场景、复现步骤和经过，以便我们能够按照你所描述的步骤复现这个问题。
+      label: 复现步骤与现象
+      description: 请描述触发场景、预期结果、实际结果，以及重启 SystemUI 或重启手机后是否仍可复现。
     validations:
       required: true
   - type: textarea
     attributes:
-      label: 提供模块问题 Log 或必要 Log
+      label: LSPosed 日志
       description: LSPosed 可在日志管理中查看并筛选包含 `ColorOSNotifyIcon` 的日志。
       value: |
         <details><summary>展开查看</summary><pre><code>
@@ -86,8 +76,9 @@ body:
     attributes:
       label: 确认一下你提交的信息
       description: |
-        为了确保 issues 的质量和避免浪费不必要的时间，未勾选下方选项的 issues 将直接被关闭。
-        请一定确保你已经**勾选下方的选项**后再提交。
+        为了确保 issue 可复现、可定位，请在提交前确认以下内容。
       options:
-        - label: 我确保上述信息准确无误
-          required: false
+        - label: 我确认正在使用 ColorOS 16 / Android 16 与 modern libxposed API 101 环境
+          required: true
+        - label: 我已经提供可用于定位问题的日志或复现信息
+          required: true

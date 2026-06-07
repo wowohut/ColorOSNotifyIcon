@@ -3,25 +3,23 @@ package com.fankes.coloros.notify.hook
 import android.app.Notification
 import android.content.Context
 import android.content.SharedPreferences
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import android.widget.ImageView
 import androidx.core.os.BundleCompat
-import com.fankes.coloros.notify.bean.IconDataBean
-import com.fankes.coloros.notify.const.ModuleInfo
-import com.fankes.coloros.notify.const.PackageName
-import com.fankes.coloros.notify.data.ConfigData
-import com.fankes.coloros.notify.utils.tool.BitmapCompatTool
+import com.fankes.coloros.notify.core.ModuleInfo
+import com.fankes.coloros.notify.core.SystemPackages
+import com.fankes.coloros.notify.hook.icon.IconBitmapClassifier
+import com.fankes.coloros.notify.hook.reflect.Reflection
+import com.fankes.coloros.notify.hook.systemui.SystemUiMembers
+import com.fankes.coloros.notify.rules.IconRule
+import com.fankes.coloros.notify.rules.RuleStore
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.io.FileInputStream
-import java.lang.reflect.Field
-import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
 
 class ModuleMain : XposedModule() {
@@ -33,7 +31,7 @@ class ModuleMain : XposedModule() {
     private val onceLogs = ConcurrentHashMap.newKeySet<String>()
     private var systemServerInstalled = false
     private var systemUiInstalled = false
-    private var systemUiRules: Map<String, IconDataBean> = emptyMap()
+    private var systemUiRules: Map<String, IconRule> = emptyMap()
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         emitLog(
@@ -48,19 +46,19 @@ class ModuleMain : XposedModule() {
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
-        if (param.packageName != PackageName.SYSTEM_UI || !param.isFirstPackage || systemUiInstalled) return
+        if (param.packageName != SystemPackages.SYSTEM_UI || !param.isFirstPackage || systemUiInstalled) return
         reloadSystemUiConfig()
         systemUiInstalled = installSystemUiHooks(param.classLoader)
     }
 
     private fun reloadSystemUiConfig() {
         val rulesJson = loadRemoteRulesJson()
-        systemUiRules = ConfigData.parseRules(rulesJson).associateBy { it.packageName }
+        systemUiRules = RuleStore.parseRules(rulesJson).associateBy { it.packageName }
         emitLog(
             Log.INFO,
             "SystemUI 配置已加载：rules=${systemUiRules.size}"
         )
-        val mirroredRuleCount = remotePrefsOrNull()?.getInt(ConfigData.KEY_RULES_COUNT, 0) ?: 0
+        val mirroredRuleCount = remotePrefsOrNull()?.getInt(RuleStore.KEY_RULES_COUNT, 0) ?: 0
         if (rulesJson.isBlank() && mirroredRuleCount > 0) {
             warnOnce("systemui.rules.missing", "SystemUI 远程规则文件为空，但远程规则计数不为 0，可能是规则镜像未完成")
         }
@@ -72,7 +70,7 @@ class ModuleMain : XposedModule() {
     private fun installSystemServerHook(classLoader: ClassLoader): Boolean {
         val helperClass = loadClassOrNull("com.android.server.notification.OplusNotificationFixHelper", classLoader)
             ?: return warnAndFalse("system.fix.helper", "未找到 OplusNotificationFixHelper，跳过 system_server Hook")
-        val fixSmallIconMethod = ReflectHelper.findMethod(
+        val fixSmallIconMethod = Reflection.findMethod(
             helperClass,
             "fixSmallIcon",
             Notification::class.java,
@@ -108,7 +106,7 @@ class ModuleMain : XposedModule() {
             "com.oplus.systemui.statusbar.notification.util.OplusNotificationSmallIconUtil",
             classLoader
         )?.let { utilClass ->
-            ReflectHelper.findMethod(
+            Reflection.findMethod(
                 utilClass,
                 "useAppIconForSmallIcon",
                 Notification::class.java,
@@ -126,7 +124,7 @@ class ModuleMain : XposedModule() {
             val statusBarIconView = chain.args.getOrNull(1) ?: return@intercept chain.proceed()
             val sbn = chain.args.getOrNull(2) as? StatusBarNotification ?: return@intercept chain.proceed()
             runCatching {
-                members.statusBarSetIsIconColorable.invoke(statusBarIconView, BitmapCompatTool.isGrayscaleDrawable(drawable))
+                members.statusBarSetIsIconColorable.invoke(statusBarIconView, IconBitmapClassifier.isGrayscaleDrawable(drawable))
             }.onFailure {
                 warnOnce("systemui.statusbar.grayscale", "状态栏灰度判定替换失败", it)
                 return@intercept chain.proceed()
@@ -179,9 +177,9 @@ class ModuleMain : XposedModule() {
         val statusBarOriginalDrawable = runCatching {
             baseStatusBarIcon?.loadDrawable(context)?.mutate()
         }.getOrNull() ?: return null
-        val originalIsGrayscale = BitmapCompatTool.isGrayscaleDrawable(statusBarOriginalDrawable)
+        val originalIsGrayscale = IconBitmapClassifier.isGrayscaleDrawable(statusBarOriginalDrawable)
         val currentIsGrayscale = runCatching {
-            currentStatusBarIcon?.loadDrawable(context)?.mutate()?.let(BitmapCompatTool::isGrayscaleDrawable)
+            currentStatusBarIcon?.loadDrawable(context)?.mutate()?.let(IconBitmapClassifier::isGrayscaleDrawable)
         }.getOrNull()
         if (originalIsGrayscale && currentIsGrayscale == false) {
             infoOnce(
@@ -199,11 +197,11 @@ class ModuleMain : XposedModule() {
     }
 
     private fun remotePrefsOrNull(): SharedPreferences? = runCatching {
-        getRemotePreferences(ConfigData.GROUP_CONFIG)
+        getRemotePreferences(RuleStore.GROUP_CONFIG)
     }.getOrNull()
 
     private fun loadRemoteRulesJson(): String = runCatching {
-        openRemoteFile(ConfigData.RULES_FILE_NAME).use { pfd ->
+        openRemoteFile(RuleStore.RULES_FILE_NAME).use { pfd ->
             FileInputStream(pfd.fileDescriptor).bufferedReader().use { it.readText() }
         }
     }.getOrDefault("")
@@ -234,126 +232,8 @@ class ModuleMain : XposedModule() {
         return false
     }
 
-    private fun loadClassOrNull(name: String, classLoader: ClassLoader): Class<*>? = runCatching {
-        Class.forName(name, false, classLoader)
-    }.getOrElse {
-        warnOnce("class:$name", "未找到类：$name", it)
-        null
-    }
-
-    private data class SystemUiMembers(
-        val statusBarUpdateGrayScale: Method,
-        val statusBarSetIsIconColorable: Method,
-        val iconManagerGetIconDescriptor: Method,
-        val iconManagerIconBuilderField: Field,
-        val iconBuilderContextField: Field,
-        val notificationEntryGetSbn: Method,
-        val statusBarIconField: Field,
-        val statusBarPreloadedIconField: Field,
-    ) {
-        companion object {
-            fun resolve(
-                classLoader: ClassLoader,
-                warn: (String, String, Throwable?) -> Unit,
-            ): SystemUiMembers? {
-                fun warnMissing(key: String, message: String): SystemUiMembers? {
-                    warn(key, message, null)
-                    return null
-                }
-
-                fun load(name: String): Class<*>? = runCatching {
-                    Class.forName(name, false, classLoader)
-                }.getOrElse {
-                    warn("class:$name", "未找到类：$name", it)
-                    null
-                }
-
-                val statusBarIconViewClass = load("com.android.systemui.statusbar.StatusBarIconView")
-                    ?: return null
-                val statusBarIconControllerClass = load("com.oplus.systemui.statusbar.phone.StatusBarIconControllerExImpl") ?: return null
-                val iconManagerClass = load("com.android.systemui.statusbar.notification.icon.IconManager") ?: return null
-                val iconBuilderClass = load("com.android.systemui.statusbar.notification.icon.IconBuilder") ?: return null
-                val notificationEntryClass = load("com.android.systemui.statusbar.notification.collection.NotificationEntry") ?: return null
-                val statusBarIconClass = load("com.android.internal.statusbar.StatusBarIcon") ?: return null
-
-                val statusBarUpdateGrayScale = ReflectHelper.findMethod(
-                    statusBarIconControllerClass,
-                    "updateStatusBarIconGrayScale",
-                    Drawable::class.java,
-                    statusBarIconViewClass,
-                    StatusBarNotification::class.java,
-                ) ?: return warnMissing(
-                    "member:statusbar.gray",
-                    "未找到 StatusBarIconControllerExImpl.updateStatusBarIconGrayScale"
-                )
-                val statusBarSetIsIconColorable = ReflectHelper.findMethod(
-                    statusBarIconViewClass,
-                    "setIsIconColorable",
-                    Boolean::class.javaPrimitiveType!!,
-                ) ?: return warnMissing("member:statusbar.colorable", "未找到 StatusBarIconView.setIsIconColorable(boolean)")
-                val iconManagerGetIconDescriptor = ReflectHelper.findMethod(
-                    iconManagerClass,
-                    "getIconDescriptor",
-                    notificationEntryClass,
-                    Boolean::class.javaPrimitiveType!!,
-                ) ?: return warnMissing("member:iconmanager.getIconDescriptor", "未找到 IconManager.getIconDescriptor(NotificationEntry, boolean)")
-                val iconManagerIconBuilderField = ReflectHelper.findField(iconManagerClass, "iconBuilder")
-                    ?: return warnMissing("member:iconmanager.iconBuilder", "未找到 IconManager.iconBuilder")
-                val iconBuilderContextField = ReflectHelper.findField(iconBuilderClass, "context")
-                    ?: return warnMissing("member:iconbuilder.context", "未找到 IconBuilder.context")
-                val notificationEntryGetSbn = ReflectHelper.findMethod(notificationEntryClass, "getSbn")
-                    ?: return warnMissing("member:entry.getSbn", "未找到 NotificationEntry.getSbn()")
-                val statusBarIconField = ReflectHelper.findField(statusBarIconClass, "icon")
-                    ?: return warnMissing("member:statusbar.icon", "未找到 StatusBarIcon.icon")
-                val statusBarPreloadedIconField = ReflectHelper.findField(statusBarIconClass, "preloadedIcon")
-                    ?: return warnMissing("member:statusbar.preloaded", "未找到 StatusBarIcon.preloadedIcon")
-
-                return SystemUiMembers(
-                    statusBarUpdateGrayScale = statusBarUpdateGrayScale,
-                    statusBarSetIsIconColorable = statusBarSetIsIconColorable,
-                    iconManagerGetIconDescriptor = iconManagerGetIconDescriptor,
-                    iconManagerIconBuilderField = iconManagerIconBuilderField,
-                    iconBuilderContextField = iconBuilderContextField,
-                    notificationEntryGetSbn = notificationEntryGetSbn,
-                    statusBarIconField = statusBarIconField,
-                    statusBarPreloadedIconField = statusBarPreloadedIconField,
-                )
-            }
+    private fun loadClassOrNull(name: String, classLoader: ClassLoader): Class<*>? =
+        Reflection.loadClassOrNull(name, classLoader) {
+            warnOnce("class:$name", "未找到类：$name", it)
         }
-    }
-
-    private object ReflectHelper {
-
-        fun findField(clazz: Class<*>, name: String): Field? {
-            var current: Class<*>? = clazz
-            while (current != null && current != Any::class.java) {
-                current.declaredFields.firstOrNull { it.name == name }?.let {
-                    it.isAccessible = true
-                    return it
-                }
-                current = current.superclass
-            }
-            return null
-        }
-
-        fun findMethod(clazz: Class<*>, name: String, vararg params: Class<*>): Method? {
-            var current: Class<*>? = clazz
-            while (current != null && current != Any::class.java) {
-                current.declaredMethods.firstOrNull { method ->
-                    method.name == name && method.parameterTypes.contentEquals(params)
-                }?.let {
-                    it.isAccessible = true
-                    return it
-                }
-                current.declaredMethods.firstOrNull { method ->
-                    method.name == name && method.parameterTypes.size == params.size
-                }?.let {
-                    it.isAccessible = true
-                    return it
-                }
-                current = current.superclass
-            }
-            return null
-        }
-    }
 }

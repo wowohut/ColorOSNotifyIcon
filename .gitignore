@@ -107,6 +107,12 @@ build/
 # Temporary（本项目调试/抓取/截图等产生的临时文件）
 .tmp*
 
+# Local third-party source snapshots for AI/reference use
+/third_party/
+
+# Local signing materials
+/.secret/
+
 # APK/AAB 构建产物（Android Studio/Gradle 生成的安装包与签名旁路文件）
 *.apk
 *.aab

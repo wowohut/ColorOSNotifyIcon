@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -23,7 +23,6 @@ android {
         targetSdk = gropify.project.android.targetSdk
         versionName = gropify.project.app.versionName
         versionCode = gropify.project.app.versionCode
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         all { signingConfig = signingConfigs.getByName("universal") }
@@ -75,20 +74,15 @@ dependencies {
     implementation(libs.libxposed.service)
     implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
-    
-    // Compose Dependencies
+
     val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
-    compileOnly(composeBom)
     implementation(libs.compose.ui)
-    compileOnly(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
     implementation(libs.activity.compose)
-    implementation(libs.lifecycle.runtime.ktx)
     debugImplementation(libs.compose.ui.tooling)
 
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.espresso.core)
+    implementation(libs.miuix.ui.android)
 }
