@@ -35,6 +35,7 @@ internal class NotificationIconResolver(
         originalSmallIcon: Icon?,
         currentStatusBarIcon: Icon?,
     ): Icon? {
+        if (sbn.shouldKeepColorOsDefault()) return null
         val originalDrawable = originalSmallIcon?.loadDrawableOrNull(context) ?: return null
         val originalIsGrayscale = IconBitmapClassifier.isGrayscaleDrawable(originalDrawable)
         resolveIconReplacement(sbn, originalIsGrayscale)?.let { return it.toIcon() }
@@ -50,6 +51,7 @@ internal class NotificationIconResolver(
         currentDrawable: Drawable?,
     ): PanelIconRenderPlan? {
         if (!config.panelIconReplacementEnabled || sbn.isMediaNotification()) return null
+        if (sbn.shouldKeepColorOsDefault()) return null
 
         val originalDrawable = originalSmallIcon?.loadDrawableOrNull(context) ?: return null
         val originalIsGrayscale = IconBitmapClassifier.isGrayscaleDrawable(originalDrawable)
@@ -118,10 +120,11 @@ internal class NotificationIconResolver(
     private fun Icon.loadDrawableOrNull(context: Context): Drawable? =
         runCatching { loadDrawable(context)?.mutate() }.getOrNull()
 
-    private fun StatusBarNotification.rulePackageName(): String {
-        if (!config.oplusPushSpecialHandlingEnabled && isOplusPush()) return opPkg.orEmpty()
-        return packageName.orEmpty()
-    }
+    private fun StatusBarNotification.rulePackageName(): String =
+        packageName.orEmpty()
+
+    private fun StatusBarNotification.shouldKeepColorOsDefault(): Boolean =
+        !config.oplusPushSpecialHandlingEnabled && isOplusPush()
 
     private fun StatusBarNotification.isOplusPush(): Boolean =
         opPkg == SYSTEM_FRAMEWORK_PACKAGE && opPkg != packageName

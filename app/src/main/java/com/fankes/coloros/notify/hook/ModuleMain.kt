@@ -104,12 +104,12 @@ class ModuleMain : XposedModule() {
                     warnOnce("system.fix.cache.original", "缓存原始 smallIcon 失败", it)
                 }
             }
-            infoOnce("system.fix.hit", "fixSmallIcon 已命中，已拦截 ColorOS 覆盖 smallIcon")
-            null
+            infoOnce("system.fix.hit", "fixSmallIcon 已命中，已缓存 ColorOS 修正前的原始 smallIcon")
+            chain.proceed()
         }
         emitLog(
             Log.INFO,
-            "system_server Hook 已安装：拦截 fixSmallIcon 覆盖通知 smallIcon"
+            "system_server Hook 已安装：缓存 fixSmallIcon 修正前的原始 smallIcon"
         )
         return true
     }
