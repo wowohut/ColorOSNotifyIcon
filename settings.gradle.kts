@@ -14,6 +14,7 @@ dependencyResolutionManagement {
 }
 plugins {
     id("com.highcapable.gropify") version "1.0.1"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
 gropify {
     global {

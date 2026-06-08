@@ -85,4 +85,5 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.miuix.ui.android)
+    implementation(libs.miuix.icons.android)
 }

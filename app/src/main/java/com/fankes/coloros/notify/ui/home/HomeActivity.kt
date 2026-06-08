@@ -13,7 +13,7 @@ import com.fankes.coloros.notify.framework.RemoteRuleMirror
 import com.fankes.coloros.notify.framework.SystemUiRestarter
 import com.fankes.coloros.notify.rules.RuleRepository
 import com.fankes.coloros.notify.rules.RuleStore
-import com.fankes.coloros.notify.ui.theme.OStatusTheme
+import com.fankes.coloros.notify.ui.theme.OStatusMiuixTheme
 import io.github.libxposed.service.XposedService
 
 class HomeActivity : ComponentActivity() {
@@ -36,7 +36,7 @@ class HomeActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            OStatusTheme {
+            OStatusMiuixTheme {
                 HomeScreen(
                     state = uiState,
                     onSyncRules = ::syncRules,
