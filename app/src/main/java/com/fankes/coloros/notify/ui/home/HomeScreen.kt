@@ -60,6 +60,7 @@ fun HomeScreen(
     state: HomeScreenState,
     onSyncRules: ((String) -> Unit) -> Unit,
     onRestartSystemUi: ((String) -> Unit) -> Unit,
+    onOpenRules: () -> Unit,
 ) {
     var showRestartDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -89,7 +90,13 @@ fun HomeScreen(
             item { SmallTitle(text = stringResource(R.string.section_module_status)) }
             item { StatusCard(state = state, onRestartClick = { showRestartDialog = true }) }
             item { SmallTitle(text = stringResource(R.string.section_rules_data)) }
-            item { RulesCard(state = state, onSyncRules = { onSyncRules(::showSnackbar) }) }
+            item {
+                RulesCard(
+                    state = state,
+                    onOpenRules = onOpenRules,
+                    onSyncRules = { onSyncRules(::showSnackbar) },
+                )
+            }
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
@@ -170,6 +177,7 @@ private fun StatusCard(
 @Composable
 private fun RulesCard(
     state: HomeScreenState,
+    onOpenRules: () -> Unit,
     onSyncRules: () -> Unit,
 ) {
     val lastSyncText = remember(state.rulesUpdatedAt) {
@@ -193,6 +201,19 @@ private fun RulesCard(
         BasicComponent(
             title = stringResource(R.string.label_last_sync_short),
             summary = lastSyncText ?: stringResource(R.string.label_never_synced),
+        )
+        BasicComponent(
+            title = stringResource(R.string.label_manage_rules),
+            summary = stringResource(R.string.label_manage_rules_summary),
+            endActions = {
+                Icon(
+                    imageVector = MiuixIcons.ChevronForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                )
+            },
+            onClick = onOpenRules,
         )
         BasicComponent(
             title = stringResource(R.string.button_sync_rules),
@@ -315,6 +336,7 @@ private fun HomeScreenLightPreview() {
             ),
             onSyncRules = {},
             onRestartSystemUi = {},
+            onOpenRules = {},
         )
     }
 }
@@ -337,6 +359,7 @@ private fun HomeScreenDarkPreview() {
             ),
             onSyncRules = {},
             onRestartSystemUi = {},
+            onOpenRules = {},
         )
     }
 }
@@ -358,6 +381,7 @@ private fun HomeScreenEmptyPreview() {
             ),
             onSyncRules = {},
             onRestartSystemUi = {},
+            onOpenRules = {},
         )
     }
 }

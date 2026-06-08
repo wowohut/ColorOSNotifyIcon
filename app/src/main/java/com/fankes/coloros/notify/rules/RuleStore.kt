@@ -6,6 +6,11 @@ import org.json.JSONArray
 
 object RuleStore {
 
+    data class ModuleConfig(
+        val moduleEnabled: Boolean = true,
+        val rulesEnabled: Boolean = true,
+    )
+
     const val GROUP_CONFIG = "config"
     const val RULES_FILE_NAME = "rules.json"
     private const val PREFS_NAME = GROUP_CONFIG
@@ -24,7 +29,11 @@ object RuleStore {
     const val KEY_RULES_COUNT = "rules_count"
     const val KEY_RULES_UPDATED_AT = "rules_updated_at"
     const val KEY_CONFIG_UPDATED_AT = "config_updated_at"
+    const val KEY_MODULE_ENABLED = "config.module_enabled"
+    const val KEY_RULES_ENABLED = "config.rules_enabled"
     private const val KEY_LAST_REMOTE_MIRRORED_AT = "last_remote_mirrored_at"
+    private const val KEY_RULE_ENABLED_PREFIX = "rule.enabled."
+    private const val KEY_RULE_ENABLED_ALL_PREFIX = "rule.enabled_all."
 
     private lateinit var appContext: Context
 
@@ -55,6 +64,12 @@ object RuleStore {
     val hasPendingRemoteSync: Boolean
         get() = localConfigUpdatedAt > prefs.getLong(KEY_LAST_REMOTE_MIRRORED_AT, 0L)
 
+    val moduleConfig: ModuleConfig
+        get() = readModuleConfig(prefs)
+
+    val rules: List<IconRule>
+        get() = applyRuleOverrides(parseRules(rulesJson), prefs)
+
     fun updateRules(json: String, updatedAt: Long = System.currentTimeMillis()) {
         val count = parseRules(json).size
         prefs.edit()
@@ -70,7 +85,29 @@ object RuleStore {
         putInt(KEY_RULES_COUNT, rulesCount)
         putLong(KEY_RULES_UPDATED_AT, rulesUpdatedAt)
         putLong(KEY_CONFIG_UPDATED_AT, localConfigUpdatedAt)
+        mirrorConfigValuesTo(this@RuleStore.prefs, remotePrefs, this)
     }.commit()
+
+    fun setRulesEnabled(enabled: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_RULES_ENABLED, enabled)
+            .markConfigChanged()
+            .apply()
+    }
+
+    fun setRuleEnabled(packageName: String, enabled: Boolean) {
+        prefs.edit()
+            .putBoolean(ruleEnabledKey(packageName), enabled)
+            .markConfigChanged()
+            .apply()
+    }
+
+    fun setRuleEnabledAll(packageName: String, enabledAll: Boolean) {
+        prefs.edit()
+            .putBoolean(ruleEnabledAllKey(packageName), enabledAll)
+            .markConfigChanged()
+            .apply()
+    }
 
     fun markRemoteMirrorSuccess(configUpdatedAt: Long = localConfigUpdatedAt) {
         prefs.edit().putLong(KEY_LAST_REMOTE_MIRRORED_AT, configUpdatedAt).apply()
@@ -86,6 +123,27 @@ object RuleStore {
                     IconRule.fromJson(item)?.let(::add)
                 }
             }
+        }
+    }
+
+    fun readModuleConfig(source: SharedPreferences?): ModuleConfig {
+        if (source == null) return ModuleConfig()
+        return ModuleConfig(
+            moduleEnabled = source.getBoolean(KEY_MODULE_ENABLED, true),
+            rulesEnabled = source.getBoolean(KEY_RULES_ENABLED, true),
+        )
+    }
+
+    fun applyRuleOverrides(
+        rules: List<IconRule>,
+        source: SharedPreferences?,
+    ): List<IconRule> {
+        if (source == null) return rules
+        return rules.map { rule ->
+            rule.copy(
+                isEnabled = source.getBoolean(ruleEnabledKey(rule.packageName), rule.isEnabled),
+                isEnabledAll = source.getBoolean(ruleEnabledAllKey(rule.packageName), rule.isEnabledAll),
+            )
         }
     }
 
@@ -108,4 +166,32 @@ object RuleStore {
             .putLong(KEY_CONFIG_UPDATED_AT, fallbackUpdatedAt)
             .apply()
     }
+
+    private fun mirrorConfigValuesTo(
+        localPrefs: SharedPreferences,
+        remotePrefs: SharedPreferences,
+        editor: SharedPreferences.Editor,
+    ) {
+        val localConfig = localPrefs.all.filterKeys(::isMirroredConfigKey)
+        remotePrefs.all.keys
+            .filter(::isMirroredConfigKey)
+            .filterNot(localConfig::containsKey)
+            .forEach(editor::remove)
+        localConfig.forEach { (key, value) ->
+            if (value is Boolean) editor.putBoolean(key, value)
+        }
+    }
+
+    private fun SharedPreferences.Editor.markConfigChanged() =
+        putLong(KEY_CONFIG_UPDATED_AT, System.currentTimeMillis())
+
+    private fun isMirroredConfigKey(key: String) =
+        key == KEY_MODULE_ENABLED ||
+            key == KEY_RULES_ENABLED ||
+            key.startsWith(KEY_RULE_ENABLED_PREFIX) ||
+            key.startsWith(KEY_RULE_ENABLED_ALL_PREFIX)
+
+    private fun ruleEnabledKey(packageName: String) = KEY_RULE_ENABLED_PREFIX + packageName
+
+    private fun ruleEnabledAllKey(packageName: String) = KEY_RULE_ENABLED_ALL_PREFIX + packageName
 }

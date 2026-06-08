@@ -1,5 +1,6 @@
 package com.fankes.coloros.notify.ui.home
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +14,7 @@ import com.fankes.coloros.notify.framework.RemoteRuleMirror
 import com.fankes.coloros.notify.framework.SystemUiRestarter
 import com.fankes.coloros.notify.rules.RuleRepository
 import com.fankes.coloros.notify.rules.RuleStore
+import com.fankes.coloros.notify.ui.rules.RulesActivity
 import com.fankes.coloros.notify.ui.theme.OStatusMiuixTheme
 import io.github.libxposed.service.XposedService
 
@@ -41,9 +43,14 @@ class HomeActivity : ComponentActivity() {
                     state = uiState,
                     onSyncRules = ::syncRules,
                     onRestartSystemUi = ::performRestartSystemUi,
+                    onOpenRules = ::openRules,
                 )
             }
         }
+    }
+
+    private fun openRules() {
+        startActivity(Intent(this, RulesActivity::class.java))
     }
 
     private fun refreshLocalState(currentService: XposedService? = this.currentService) {

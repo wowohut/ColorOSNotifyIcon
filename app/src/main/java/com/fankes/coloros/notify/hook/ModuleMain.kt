@@ -31,6 +31,7 @@ class ModuleMain : XposedModule() {
     private val onceLogs = ConcurrentHashMap.newKeySet<String>()
     private var systemServerInstalled = false
     private var systemUiInstalled = false
+    private var systemUiConfig = RuleStore.ModuleConfig()
     private var systemUiRules: Map<String, IconRule> = emptyMap()
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
@@ -52,13 +53,18 @@ class ModuleMain : XposedModule() {
     }
 
     private fun reloadSystemUiConfig() {
+        val remotePrefs = remotePrefsOrNull()
         val rulesJson = loadRemoteRulesJson()
-        systemUiRules = RuleStore.parseRules(rulesJson).associateBy { it.packageName }
+        systemUiConfig = RuleStore.readModuleConfig(remotePrefs)
+        systemUiRules = RuleStore.applyRuleOverrides(
+            rules = RuleStore.parseRules(rulesJson),
+            source = remotePrefs,
+        ).associateBy { it.packageName }
         emitLog(
             Log.INFO,
-            "SystemUI 配置已加载：rules=${systemUiRules.size}"
+            "SystemUI 配置已加载：enabled=${systemUiConfig.moduleEnabled}, rulesEnabled=${systemUiConfig.rulesEnabled}, rules=${systemUiRules.size}"
         )
-        val mirroredRuleCount = remotePrefsOrNull()?.getInt(RuleStore.KEY_RULES_COUNT, 0) ?: 0
+        val mirroredRuleCount = remotePrefs?.getInt(RuleStore.KEY_RULES_COUNT, 0) ?: 0
         if (rulesJson.isBlank() && mirroredRuleCount > 0) {
             warnOnce("systemui.rules.missing", "SystemUI 远程规则文件为空，但远程规则计数不为 0，可能是规则镜像未完成")
         }
@@ -89,17 +95,21 @@ class ModuleMain : XposedModule() {
                     warnOnce("system.fix.cache.original", "缓存原始 smallIcon 失败", it)
                 }
             }
-            infoOnce("system.fix.hit", "fixSmallIcon 已命中，已缓存原始 smallIcon，通知中心继续保留 ColorOS 原始逻辑")
-            chain.proceed()
+            infoOnce("system.fix.hit", "fixSmallIcon 已命中，已拦截 ColorOS 覆盖 smallIcon")
+            null
         }
         emitLog(
             Log.INFO,
-            "system_server Hook 已安装：fixSmallIcon 原始 smallIcon 缓存"
+            "system_server Hook 已安装：拦截 fixSmallIcon 覆盖通知 smallIcon"
         )
         return true
     }
 
     private fun installSystemUiHooks(classLoader: ClassLoader): Boolean {
+        if (!systemUiConfig.moduleEnabled) {
+            warnOnce("systemui.config.disabled", "模块配置已停用，跳过 SystemUI Hook")
+            return false
+        }
         val members = SystemUiMembers.resolve(classLoader, ::warnOnce) ?: return false
 
         loadClassOrNull(
@@ -189,6 +199,7 @@ class ModuleMain : XposedModule() {
             return baseStatusBarIcon
         }
 
+        if (!systemUiConfig.rulesEnabled) return null
         val rule = systemUiRules[packageName]?.takeIf { it.isEnabled } ?: return null
         val shouldUseRule = rule.isEnabledAll || !originalIsGrayscale
         if (!shouldUseRule) return null
