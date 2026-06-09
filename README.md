@@ -1,6 +1,8 @@
 # ColorOS 通知图标增强
 
-基于 [fankes/ColorOSNotifyIcon](https://github.com/fankes/ColorOSNotifyIcon) 大幅重构的个人维护分支，使用 [libxposed API 101](https://github.com/libxposed/api) 重写 Hook 层，UI 迁移至 [Miuix](https://github.com/compose-miuix-ui/miuix)，专注于 ColorOS 16 通知图标优化与原生图标规范适配。
+为 ColorOS 优化通知图标，并适配原生通知图标规范。
+
+> Fork 自 [fankes/ColorOSNotifyIcon](https://github.com/fankes/ColorOSNotifyIcon) 的个人分支，进行了一些微小的工作。使用现代化的 [libxposed API 101](https://github.com/libxposed/api) 重构了 Hook 层，并使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 重写了 UI。
 
 ## 功能
 
