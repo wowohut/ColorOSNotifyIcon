@@ -1,8 +1,8 @@
 [versions]
 agp = "9.2.1"
 kotlin = "2.4.0"
-libxposed-api = "101.0.1"
-libxposed-service = "101.0.0"
+libxposed-api = "102.0.0"
+libxposed-service = "102.0.0"
 okhttp = "5.3.2"
 androidx-core-ktx = "1.19.0"
 compose-bom = "2026.05.01"

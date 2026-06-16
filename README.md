@@ -2,7 +2,7 @@
 
 为 ColorOS 优化通知图标，并适配原生通知图标规范。
 
-> Fork 自 [fankes/ColorOSNotifyIcon](https://github.com/fankes/ColorOSNotifyIcon) 的个人分支，进行了一些微小的工作。使用现代化的 [libxposed API 101](https://github.com/libxposed/api) 重构了 Hook 层，并使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 重写了 UI。
+> Fork 自 [fankes/ColorOSNotifyIcon](https://github.com/fankes/ColorOSNotifyIcon) 的个人分支，进行了一些微小的工作。使用现代化的 [libxposed API 102](https://github.com/libxposed/api) 重构了 Hook 层，并使用 [Miuix](https://github.com/compose-miuix-ui/miuix) 重写了 UI。
 
 ## 功能
 
@@ -74,7 +74,7 @@ Fork 自 [fankes/ColorOSNotifyIcon](https://github.com/fankes/ColorOSNotifyIcon)
 
 主要改动：
 
-- 用 [modern libxposed API 101](https://github.com/libxposed/api) 重写了 Hook 入口
+- 用 [modern libxposed API 102](https://github.com/libxposed/api) 重写了 Hook 入口
 - 移除了旧框架兼容层
 - 用 [Miuix](https://github.com/compose-miuix-ui/miuix) 重写了 App UI
 - 功能收敛到通知图标增强，去除其余杂项功能
