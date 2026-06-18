@@ -26,7 +26,7 @@
     <string name="label_oplus_push_special_handling_enabled_summary">Oplus Push 通知按目标应用匹配规则</string>
     <string name="label_placeholder_icon_enabled">未适配占位符</string>
     <string name="label_placeholder_icon_enabled_summary">未命中规则的彩色图标使用单色占位符</string>
-    <string name="label_framework_waiting_summary">已保存到本地，等待框架服务连接</string>
+    <string name="label_framework_waiting_summary">未连接 LSPosed 服务，暂不能修改生效配置</string>
     <string name="label_rule_enable">启用替换</string>
     <string name="label_rule_enable_summary">彩色通知图标将使用规则图标替换</string>
     <string name="label_rule_force_all">全部替换</string>
@@ -47,13 +47,11 @@
     <string name="dialog_restart_message">将立即重启系统界面以使配置生效。此操作会导致屏幕短暂黑屏，是否继续？</string>
     <string name="dialog_cancel">取消</string>
     <string name="dialog_confirm_restart">确认重启</string>
-    <string name="message_rules_sync_success_local_pending">规则同步完成，共 %1$d 条；已保存到本地，框架恢复后会自动同步</string>
     <string name="message_rules_sync_success_remote">规则同步完成，共 %1$d 条；已镜像到框架并通知 SystemUI 刷新</string>
-    <string name="message_rules_sync_mirror_failed">规则同步完成，共 %1$d 条，但镜像到框架失败：%2$s</string>
+    <string name="message_rules_sync_mirror_failed">规则下载完成，共 %1$d 条，但发布到框架失败：%2$s</string>
     <string name="message_rules_sync_failed">规则同步失败：%1$s</string>
-    <string name="message_config_saved_local_pending">设置已保存到本地；框架服务连接后会自动同步</string>
-    <string name="message_config_mirror_failed">设置已保存，但同步到框架失败：%1$s</string>
-    <string name="message_pending_sync_then_restart">当前未连接 modern Xposed 框架，设置已保存到本地；待框架恢复后会自动同步，再重启一次 SystemUI 即可</string>
+    <string name="message_config_mirror_failed">设置未发布到框架：%1$s</string>
+    <string name="message_framework_unavailable">未连接 LSPosed 服务，未修改生效配置</string>
     <string name="message_config_not_synced">配置尚未同步到框架：%1$s</string>
     <string name="message_restart_requested">已请求重启 SystemUI</string>
     <string name="message_restart_failed">重启失败：%1$s</string>

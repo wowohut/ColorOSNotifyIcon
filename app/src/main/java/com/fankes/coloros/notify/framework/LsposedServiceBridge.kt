@@ -25,7 +25,6 @@ object LsposedServiceBridge {
             XposedServiceHelper.registerListener(object : XposedServiceHelper.OnServiceListener {
                 override fun onServiceBind(service: XposedService) {
                     currentService = service
-                    RemoteRuleMirror.syncIfPending(service)
                     notifyListeners(service)
                 }
 

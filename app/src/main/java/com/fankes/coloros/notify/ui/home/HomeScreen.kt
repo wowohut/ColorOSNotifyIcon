@@ -154,6 +154,8 @@ private fun SettingsCard(
     onOplusPushSpecialHandlingEnabledChange: (Boolean) -> Unit,
     onPlaceholderIconEnabledChange: (Boolean) -> Unit,
 ) {
+    val canEditConfig = state.canEditConfig
+    val unavailableSummary = stringResource(R.string.label_framework_waiting_summary)
     Card(
         modifier = Modifier
             .padding(horizontal = 12.dp)
@@ -161,32 +163,46 @@ private fun SettingsCard(
     ) {
         ToggleComponent(
             title = stringResource(R.string.label_rules_enabled),
-            summary = if (state.isModuleActive) {
+            summary = if (canEditConfig) {
                 stringResource(R.string.label_rules_enabled_summary)
             } else {
-                stringResource(R.string.label_framework_waiting_summary)
+                unavailableSummary
             },
             checked = state.config.rulesEnabled,
+            enabled = canEditConfig,
             onCheckedChange = onRulesEnabledChange,
         )
         ToggleComponent(
             title = stringResource(R.string.label_panel_icon_replacement_enabled),
-            summary = stringResource(R.string.label_panel_icon_replacement_enabled_summary),
+            summary = if (canEditConfig) {
+                stringResource(R.string.label_panel_icon_replacement_enabled_summary)
+            } else {
+                unavailableSummary
+            },
             checked = state.config.panelIconReplacementEnabled,
+            enabled = canEditConfig,
             onCheckedChange = onPanelIconReplacementEnabledChange,
         )
         ToggleComponent(
             title = stringResource(R.string.label_oplus_push_special_handling_enabled),
-            summary = stringResource(R.string.label_oplus_push_special_handling_enabled_summary),
+            summary = if (canEditConfig) {
+                stringResource(R.string.label_oplus_push_special_handling_enabled_summary)
+            } else {
+                unavailableSummary
+            },
             checked = state.config.oplusPushSpecialHandlingEnabled,
-            enabled = state.config.rulesEnabled,
+            enabled = canEditConfig && state.config.rulesEnabled,
             onCheckedChange = onOplusPushSpecialHandlingEnabledChange,
         )
         ToggleComponent(
             title = stringResource(R.string.label_placeholder_icon_enabled),
-            summary = stringResource(R.string.label_placeholder_icon_enabled_summary),
+            summary = if (canEditConfig) {
+                stringResource(R.string.label_placeholder_icon_enabled_summary)
+            } else {
+                unavailableSummary
+            },
             checked = state.config.placeholderIconEnabled,
-            enabled = state.config.rulesEnabled,
+            enabled = canEditConfig && state.config.rulesEnabled,
             onCheckedChange = onPlaceholderIconEnabledChange,
         )
     }
@@ -352,7 +368,11 @@ private fun RulesCard(
         BasicComponent(
             title = stringResource(R.string.button_sync_rules),
             summary = when (state.syncStage) {
-                RuleSyncStage.Idle -> stringResource(R.string.label_sync_summary)
+                RuleSyncStage.Idle -> if (state.canEditConfig) {
+                    stringResource(R.string.label_sync_summary)
+                } else {
+                    stringResource(R.string.label_framework_waiting_summary)
+                }
                 RuleSyncStage.SyncingRules -> stringResource(R.string.button_syncing_rules)
                 RuleSyncStage.MirroringRemote -> stringResource(R.string.button_mirroring_rules)
             },
@@ -367,7 +387,7 @@ private fun RulesCard(
                 }
             } else null,
             onClick = onSyncRules,
-            enabled = !state.isSyncing,
+            enabled = !state.isSyncing && state.canEditConfig,
         )
         BasicComponent(
             title = stringResource(R.string.label_restart_systemui),
@@ -381,6 +401,7 @@ private fun RulesCard(
                 )
             },
             onClick = onRestartClick,
+            enabled = state.canEditConfig,
         )
     }
 }

@@ -2,8 +2,6 @@ package com.fankes.coloros.notify.framework
 
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
-import com.fankes.coloros.notify.core.ModuleInfo
 import com.fankes.coloros.notify.rules.RuleStore
 import io.github.libxposed.service.XposedService
 import java.io.FileInputStream
@@ -28,7 +26,8 @@ object RemoteRuleMirror {
         service: XposedService,
         onResult: ((Result<SyncResult>) -> Unit)? = null,
     ) {
-        val configUpdatedAt = RuleStore.localConfigUpdatedAt
+        val snapshot = RuleStore.captureMirrorSnapshot()
+        val configUpdatedAt = snapshot.configUpdatedAt
         synchronized(syncLock) {
             if (pendingCallbacks.containsKey(configUpdatedAt)) {
                 if (onResult != null) {
@@ -41,7 +40,7 @@ object RemoteRuleMirror {
             }
         }
         executor.execute {
-            val result = syncBlocking(service)
+            val result = syncBlocking(service, snapshot)
             val callbacks = synchronized(syncLock) {
                 pendingCallbacks.remove(configUpdatedAt).orEmpty()
             }
@@ -51,13 +50,15 @@ object RemoteRuleMirror {
         }
     }
 
-    fun syncBlocking(service: XposedService): Result<SyncResult> = runCatching {
-        val remotePrefs = service.getRemotePreferences(RuleStore.GROUP_CONFIG)
-        val localConfigUpdatedAt = RuleStore.localConfigUpdatedAt
-        val committed = RuleStore.mirrorTo(remotePrefs)
-        check(committed) { "远程偏好设置提交失败" }
+    fun syncBlocking(service: XposedService): Result<SyncResult> =
+        syncBlocking(service, RuleStore.captureMirrorSnapshot())
 
-        val payload = RuleStore.rulesJson.toByteArray(Charsets.UTF_8)
+    private fun syncBlocking(
+        service: XposedService,
+        snapshot: RuleStore.MirrorSnapshot,
+    ): Result<SyncResult> = runCatching {
+        val remotePrefs = service.getRemotePreferences(RuleStore.GROUP_CONFIG)
+        val payload = snapshot.rulesJson.toByteArray(Charsets.UTF_8)
         service.openRemoteFile(RuleStore.RULES_FILE_NAME).use { pfd ->
             FileOutputStream(pfd.fileDescriptor).use { output ->
                 output.channel.truncate(0)
@@ -67,37 +68,18 @@ object RemoteRuleMirror {
             }
         }
 
-        val mirroredCount = remotePrefs.getInt(RuleStore.KEY_RULES_COUNT, -1)
-        check(mirroredCount == RuleStore.rulesCount) {
-            "远程规则数量不一致：local=${RuleStore.rulesCount}, remote=$mirroredCount"
-        }
-        val mirroredUpdatedAt = remotePrefs.getLong(RuleStore.KEY_CONFIG_UPDATED_AT, -1L)
-        check(mirroredUpdatedAt == localConfigUpdatedAt) {
-            "远程配置版本不一致：local=$localConfigUpdatedAt, remote=$mirroredUpdatedAt"
-        }
         val mirroredJson = service.openRemoteFile(RuleStore.RULES_FILE_NAME).use { pfd ->
             FileInputStream(pfd.fileDescriptor).bufferedReader().use { it.readText() }
         }
-        check(mirroredJson == RuleStore.rulesJson) { "远程规则文件校验失败" }
+        check(mirroredJson == snapshot.rulesJson) { "远程规则文件校验失败" }
 
-        RuleStore.markRemoteMirrorSuccess(localConfigUpdatedAt)
+        val committed = RuleStore.mirrorTo(remotePrefs, snapshot)
+        check(committed) { "远程偏好设置提交失败" }
+
         SyncResult(
-            rulesCount = mirroredCount,
+            rulesCount = snapshot.rulesCount,
             payloadBytes = payload.size,
-            configUpdatedAt = localConfigUpdatedAt,
+            configUpdatedAt = snapshot.configUpdatedAt,
         )
-    }
-
-    fun syncIfPending(service: XposedService) {
-        if (!RuleStore.hasPendingRemoteSync) return
-        syncAsync(service) { result ->
-            result.onFailure {
-                Log.w(
-                    ModuleInfo.LOG_TAG,
-                    "框架服务恢复后自动镜像失败：${it.message ?: it.javaClass.simpleName}",
-                    it
-                )
-            }
-        }
     }
 }

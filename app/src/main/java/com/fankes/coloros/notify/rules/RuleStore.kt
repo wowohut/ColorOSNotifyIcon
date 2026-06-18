@@ -14,6 +14,14 @@ object RuleStore {
         val placeholderIconEnabled: Boolean = false,
     )
 
+    data class MirrorSnapshot(
+        val rulesJson: String,
+        val rulesCount: Int,
+        val rulesUpdatedAt: Long,
+        val configUpdatedAt: Long,
+        val configValues: Map<String, Boolean>,
+    )
+
     const val GROUP_CONFIG = "config"
     const val RULES_FILE_NAME = "rules.json"
     private const val PREFS_NAME = GROUP_CONFIG
@@ -37,7 +45,6 @@ object RuleStore {
     const val KEY_PANEL_ICON_REPLACEMENT_ENABLED = "config.panel_icon_replacement_enabled"
     const val KEY_OPLUS_PUSH_SPECIAL_HANDLING_ENABLED = "config.oplus_push_special_handling_enabled"
     const val KEY_PLACEHOLDER_ICON_ENABLED = "config.placeholder_icon_enabled"
-    private const val KEY_LAST_REMOTE_MIRRORED_AT = "last_remote_mirrored_at"
     private const val KEY_RULE_ENABLED_PREFIX = "rule.enabled."
     private const val KEY_RULE_ENABLED_ALL_PREFIX = "rule.enabled_all."
 
@@ -67,9 +74,6 @@ object RuleStore {
     val localConfigUpdatedAt: Long
         get() = prefs.getLong(KEY_CONFIG_UPDATED_AT, 0L)
 
-    val hasPendingRemoteSync: Boolean
-        get() = localConfigUpdatedAt > prefs.getLong(KEY_LAST_REMOTE_MIRRORED_AT, 0L)
-
     val moduleConfig: ModuleConfig
         get() = readModuleConfig(prefs)
 
@@ -86,12 +90,26 @@ object RuleStore {
             .apply()
     }
 
-    fun mirrorTo(remotePrefs: SharedPreferences): Boolean = remotePrefs.edit().apply {
+    fun captureMirrorSnapshot(): MirrorSnapshot {
+        val localPrefs = prefs
+        return MirrorSnapshot(
+            rulesJson = rulesJson,
+            rulesCount = rulesCount,
+            rulesUpdatedAt = rulesUpdatedAt,
+            configUpdatedAt = localConfigUpdatedAt,
+            configValues = localPrefs.all
+                .filterKeys(::isMirroredConfigKey)
+                .mapNotNull { (key, value) -> (value as? Boolean)?.let { key to it } }
+                .toMap(),
+        )
+    }
+
+    fun mirrorTo(remotePrefs: SharedPreferences, snapshot: MirrorSnapshot): Boolean = remotePrefs.edit().apply {
         OBSOLETE_KEYS.forEach(::remove)
-        putInt(KEY_RULES_COUNT, rulesCount)
-        putLong(KEY_RULES_UPDATED_AT, rulesUpdatedAt)
-        putLong(KEY_CONFIG_UPDATED_AT, localConfigUpdatedAt)
-        mirrorConfigValuesTo(this@RuleStore.prefs, remotePrefs, this)
+        putInt(KEY_RULES_COUNT, snapshot.rulesCount)
+        putLong(KEY_RULES_UPDATED_AT, snapshot.rulesUpdatedAt)
+        putLong(KEY_CONFIG_UPDATED_AT, snapshot.configUpdatedAt)
+        mirrorConfigValuesTo(snapshot.configValues, remotePrefs, this)
     }.commit()
 
     fun setRulesEnabled(enabled: Boolean) {
@@ -134,10 +152,6 @@ object RuleStore {
             .putBoolean(ruleEnabledAllKey(packageName), enabledAll)
             .markConfigChanged()
             .apply()
-    }
-
-    fun markRemoteMirrorSuccess(configUpdatedAt: Long = localConfigUpdatedAt) {
-        prefs.edit().putLong(KEY_LAST_REMOTE_MIRRORED_AT, configUpdatedAt).apply()
     }
 
     fun parseRules(json: String): List<IconRule> {
@@ -198,17 +212,16 @@ object RuleStore {
     }
 
     private fun mirrorConfigValuesTo(
-        localPrefs: SharedPreferences,
+        localConfig: Map<String, Boolean>,
         remotePrefs: SharedPreferences,
         editor: SharedPreferences.Editor,
     ) {
-        val localConfig = localPrefs.all.filterKeys(::isMirroredConfigKey)
         remotePrefs.all.keys
             .filter(::isMirroredConfigKey)
             .filterNot(localConfig::containsKey)
             .forEach(editor::remove)
         localConfig.forEach { (key, value) ->
-            if (value is Boolean) editor.putBoolean(key, value)
+            editor.putBoolean(key, value)
         }
     }
 

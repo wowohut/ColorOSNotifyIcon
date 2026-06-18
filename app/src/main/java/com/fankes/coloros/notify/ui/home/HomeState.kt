@@ -32,6 +32,9 @@ data class HomeScreenState(
     val missingScopes: Set<String>
         get() = REQUIRED_SCOPES - grantedScopes
 
+    val canEditConfig: Boolean
+        get() = isModuleActive && missingScopes.isEmpty()
+
     val isSyncing: Boolean
         get() = syncStage != RuleSyncStage.Idle
 

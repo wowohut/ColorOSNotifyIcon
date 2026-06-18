@@ -8,6 +8,7 @@ data class RuleListState(
     val rules: List<IconRule> = emptyList(),
     val query: String = "",
     val config: RuleStore.ModuleConfig = RuleStore.ModuleConfig(),
+    val canEditConfig: Boolean = false,
 ) {
     val filteredRules: List<IconRule>
         get() {

@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.fankes.coloros.notify.R
+import com.fankes.coloros.notify.core.SystemPackages
 import com.fankes.coloros.notify.framework.LsposedServiceBridge
 import com.fankes.coloros.notify.framework.RemoteRuleMirror
 import com.fankes.coloros.notify.framework.SystemUiRefreshSignal
@@ -25,7 +26,6 @@ class RulesActivity : ComponentActivity() {
         override fun onServiceChanged(service: XposedService?) {
             runOnUiThread {
                 refreshState(currentService = service)
-                mirrorPendingRemoteStoreIfNeeded()
             }
         }
     }
@@ -53,6 +53,7 @@ class RulesActivity : ComponentActivity() {
         uiState = uiState.copy(
             rules = RuleStore.rules,
             config = RuleStore.moduleConfig,
+            canEditConfig = currentService?.scope?.containsAll(REQUIRED_SCOPES) == true,
         )
     }
 
@@ -61,50 +62,56 @@ class RulesActivity : ComponentActivity() {
     }
 
     private fun setRuleEnabled(rule: IconRule, enabled: Boolean, onShowMessage: (String) -> Unit) {
+        val service = requireFrameworkService(onShowMessage) ?: return
+        val previous = rule.isEnabled
         RuleStore.setRuleEnabled(rule.packageName, enabled)
         uiState = uiState.copy(
             rules = uiState.rules.mapRule(rule.packageName) { it.copy(isEnabled = enabled) },
             config = RuleStore.moduleConfig,
         )
-        mirrorConfigChanged(onShowMessage)
+        mirrorConfigChanged(service, onShowMessage) {
+            RuleStore.setRuleEnabled(rule.packageName, previous)
+            uiState = uiState.copy(
+                rules = uiState.rules.mapRule(rule.packageName) { it.copy(isEnabled = previous) },
+                config = RuleStore.moduleConfig,
+            )
+        }
     }
 
     private fun setRuleEnabledAll(rule: IconRule, enabledAll: Boolean, onShowMessage: (String) -> Unit) {
+        val service = requireFrameworkService(onShowMessage) ?: return
+        val previous = rule.isEnabledAll
         RuleStore.setRuleEnabledAll(rule.packageName, enabledAll)
         uiState = uiState.copy(
             rules = uiState.rules.mapRule(rule.packageName) { it.copy(isEnabledAll = enabledAll) },
             config = RuleStore.moduleConfig,
         )
-        mirrorConfigChanged(onShowMessage)
+        mirrorConfigChanged(service, onShowMessage) {
+            RuleStore.setRuleEnabledAll(rule.packageName, previous)
+            uiState = uiState.copy(
+                rules = uiState.rules.mapRule(rule.packageName) { it.copy(isEnabledAll = previous) },
+                config = RuleStore.moduleConfig,
+            )
+        }
     }
 
-    private fun mirrorConfigChanged(onShowMessage: (String) -> Unit) {
-        val service = currentService
-        if (service == null) {
-            onShowMessage(getString(R.string.message_config_saved_local_pending))
-            return
-        }
+    private fun mirrorConfigChanged(
+        service: XposedService,
+        onShowMessage: (String) -> Unit,
+        rollback: () -> Unit,
+    ) {
         RemoteRuleMirror.syncAsync(service) { result ->
             result.onSuccess {
                 SystemUiRefreshSignal.request(this)
             }
             result.onFailure {
+                rollback()
                 onShowMessage(
                     getString(
                         R.string.message_config_mirror_failed,
                         it.message ?: it.javaClass.simpleName,
                     )
                 )
-            }
-        }
-    }
-
-    private fun mirrorPendingRemoteStoreIfNeeded() {
-        val service = currentService ?: return
-        if (!RuleStore.hasPendingRemoteSync) return
-        RemoteRuleMirror.syncAsync(service) { result ->
-            result.onSuccess {
-                SystemUiRefreshSignal.request(this)
             }
         }
     }
@@ -119,10 +126,22 @@ class RulesActivity : ComponentActivity() {
         super.onStop()
     }
 
+    private fun requireFrameworkService(onShowMessage: (String) -> Unit): XposedService? {
+        val service = currentService
+        if (service == null) {
+            onShowMessage(getString(R.string.message_framework_unavailable))
+        }
+        return service
+    }
+
     private fun List<IconRule>.mapRule(
         packageName: String,
         transform: (IconRule) -> IconRule,
     ) = map { rule ->
         if (rule.packageName == packageName) transform(rule) else rule
+    }
+
+    companion object {
+        private val REQUIRED_SCOPES = setOf(SystemPackages.SYSTEM_SCOPE, SystemPackages.SYSTEM_UI)
     }
 }

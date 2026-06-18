@@ -141,6 +141,7 @@ fun RuleListScreen(
                     RuleCard(
                         rule = rule,
                         rulesEnabled = state.config.rulesEnabled,
+                        canEditConfig = state.canEditConfig,
                         onEnabledChange = { onRuleEnabledChange(rule, it, ::showSnackbar) },
                         onEnabledAllChange = { onRuleEnabledAllChange(rule, it, ::showSnackbar) },
                     )
@@ -177,9 +178,11 @@ private fun RuleSummaryCard(
 private fun RuleCard(
     rule: IconRule,
     rulesEnabled: Boolean,
+    canEditConfig: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onEnabledAllChange: (Boolean) -> Unit,
 ) {
+    val unavailableSummary = stringResource(R.string.label_framework_waiting_summary)
     Card(
         modifier = Modifier
             .padding(horizontal = 12.dp)
@@ -216,16 +219,24 @@ private fun RuleCard(
         }
         ToggleComponent(
             title = stringResource(R.string.label_rule_enable),
-            summary = stringResource(R.string.label_rule_enable_summary),
+            summary = if (canEditConfig) {
+                stringResource(R.string.label_rule_enable_summary)
+            } else {
+                unavailableSummary
+            },
             checked = rule.isEnabled,
-            enabled = rulesEnabled,
+            enabled = canEditConfig && rulesEnabled,
             onCheckedChange = onEnabledChange,
         )
         ToggleComponent(
             title = stringResource(R.string.label_rule_force_all),
-            summary = stringResource(R.string.label_rule_force_all_summary),
+            summary = if (canEditConfig) {
+                stringResource(R.string.label_rule_force_all_summary)
+            } else {
+                unavailableSummary
+            },
             checked = rule.isEnabledAll,
-            enabled = rulesEnabled && rule.isEnabled,
+            enabled = canEditConfig && rulesEnabled && rule.isEnabled,
             onCheckedChange = onEnabledAllChange,
         )
     }
