@@ -6,9 +6,20 @@ import org.json.JSONArray
 
 object RuleStore {
 
+    enum class IconSourceMode(val prefValue: String) {
+        RuleLibrary("rule_library"),
+        DesktopTheme("desktop_theme");
+
+        companion object {
+            fun fromPref(value: String?) =
+                values().firstOrNull { it.prefValue == value } ?: RuleLibrary
+        }
+    }
+
     data class ModuleConfig(
         val moduleEnabled: Boolean = true,
         val rulesEnabled: Boolean = true,
+        val iconSourceMode: IconSourceMode = IconSourceMode.RuleLibrary,
         val panelIconReplacementEnabled: Boolean = true,
         val oplusPushSpecialHandlingEnabled: Boolean = true,
         val placeholderIconEnabled: Boolean = false,
@@ -19,7 +30,7 @@ object RuleStore {
         val rulesCount: Int,
         val rulesUpdatedAt: Long,
         val configUpdatedAt: Long,
-        val configValues: Map<String, Boolean>,
+        val configValues: Map<String, Any>,
     )
 
     const val GROUP_CONFIG = "config"
@@ -42,6 +53,7 @@ object RuleStore {
     const val KEY_CONFIG_UPDATED_AT = "config_updated_at"
     const val KEY_MODULE_ENABLED = "config.module_enabled"
     const val KEY_RULES_ENABLED = "config.rules_enabled"
+    const val KEY_ICON_SOURCE_MODE = "config.icon_source_mode"
     const val KEY_PANEL_ICON_REPLACEMENT_ENABLED = "config.panel_icon_replacement_enabled"
     const val KEY_OPLUS_PUSH_SPECIAL_HANDLING_ENABLED = "config.oplus_push_special_handling_enabled"
     const val KEY_PLACEHOLDER_ICON_ENABLED = "config.placeholder_icon_enabled"
@@ -99,7 +111,13 @@ object RuleStore {
             configUpdatedAt = localConfigUpdatedAt,
             configValues = localPrefs.all
                 .filterKeys(::isMirroredConfigKey)
-                .mapNotNull { (key, value) -> (value as? Boolean)?.let { key to it } }
+                .mapNotNull { (key, value) ->
+                    when (value) {
+                        is Boolean -> key to value
+                        is String -> key to value
+                        else -> null
+                    }
+                }
                 .toMap(),
         )
     }
@@ -115,6 +133,13 @@ object RuleStore {
     fun setRulesEnabled(enabled: Boolean) {
         prefs.edit()
             .putBoolean(KEY_RULES_ENABLED, enabled)
+            .markConfigChanged()
+            .apply()
+    }
+
+    fun setIconSourceMode(mode: IconSourceMode) {
+        prefs.edit()
+            .putString(KEY_ICON_SOURCE_MODE, mode.prefValue)
             .markConfigChanged()
             .apply()
     }
@@ -172,6 +197,7 @@ object RuleStore {
         return ModuleConfig(
             moduleEnabled = source.getBoolean(KEY_MODULE_ENABLED, true),
             rulesEnabled = source.getBoolean(KEY_RULES_ENABLED, true),
+            iconSourceMode = IconSourceMode.fromPref(source.getString(KEY_ICON_SOURCE_MODE, null)),
             panelIconReplacementEnabled = source.getBoolean(KEY_PANEL_ICON_REPLACEMENT_ENABLED, true),
             oplusPushSpecialHandlingEnabled = source.getBoolean(KEY_OPLUS_PUSH_SPECIAL_HANDLING_ENABLED, true),
             placeholderIconEnabled = source.getBoolean(KEY_PLACEHOLDER_ICON_ENABLED, false),
@@ -212,7 +238,7 @@ object RuleStore {
     }
 
     private fun mirrorConfigValuesTo(
-        localConfig: Map<String, Boolean>,
+        localConfig: Map<String, Any>,
         remotePrefs: SharedPreferences,
         editor: SharedPreferences.Editor,
     ) {
@@ -221,7 +247,10 @@ object RuleStore {
             .filterNot(localConfig::containsKey)
             .forEach(editor::remove)
         localConfig.forEach { (key, value) ->
-            editor.putBoolean(key, value)
+            when (value) {
+                is Boolean -> editor.putBoolean(key, value)
+                is String -> editor.putString(key, value)
+            }
         }
     }
 
@@ -231,6 +260,7 @@ object RuleStore {
     private fun isMirroredConfigKey(key: String) =
         key == KEY_MODULE_ENABLED ||
             key == KEY_RULES_ENABLED ||
+            key == KEY_ICON_SOURCE_MODE ||
             key == KEY_PANEL_ICON_REPLACEMENT_ENABLED ||
             key == KEY_OPLUS_PUSH_SPECIAL_HANDLING_ENABLED ||
             key == KEY_PLACEHOLDER_ICON_ENABLED ||

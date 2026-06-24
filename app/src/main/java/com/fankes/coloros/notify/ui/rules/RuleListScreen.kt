@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fankes.coloros.notify.R
 import com.fankes.coloros.notify.rules.IconRule
+import com.fankes.coloros.notify.rules.RuleStore
 import com.fankes.coloros.notify.ui.theme.ColorOSNotifyIconTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -141,6 +142,7 @@ fun RuleListScreen(
                     RuleCard(
                         rule = rule,
                         rulesEnabled = state.config.rulesEnabled,
+                        ruleLibraryMode = state.config.iconSourceMode == RuleStore.IconSourceMode.RuleLibrary,
                         canEditConfig = state.canEditConfig,
                         onEnabledChange = { onRuleEnabledChange(rule, it, ::showSnackbar) },
                         onEnabledAllChange = { onRuleEnabledAllChange(rule, it, ::showSnackbar) },
@@ -178,11 +180,13 @@ private fun RuleSummaryCard(
 private fun RuleCard(
     rule: IconRule,
     rulesEnabled: Boolean,
+    ruleLibraryMode: Boolean,
     canEditConfig: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     onEnabledAllChange: (Boolean) -> Unit,
 ) {
     val unavailableSummary = stringResource(R.string.label_framework_waiting_summary)
+    val ruleModeRequiredSummary = stringResource(R.string.label_rule_library_mode_required_summary)
     Card(
         modifier = Modifier
             .padding(horizontal = 12.dp)
@@ -220,23 +224,31 @@ private fun RuleCard(
         ToggleComponent(
             title = stringResource(R.string.label_rule_enable),
             summary = if (canEditConfig) {
-                stringResource(R.string.label_rule_enable_summary)
+                if (ruleLibraryMode) {
+                    stringResource(R.string.label_rule_enable_summary)
+                } else {
+                    ruleModeRequiredSummary
+                }
             } else {
                 unavailableSummary
             },
             checked = rule.isEnabled,
-            enabled = canEditConfig && rulesEnabled,
+            enabled = canEditConfig && rulesEnabled && ruleLibraryMode,
             onCheckedChange = onEnabledChange,
         )
         ToggleComponent(
             title = stringResource(R.string.label_rule_force_all),
             summary = if (canEditConfig) {
-                stringResource(R.string.label_rule_force_all_summary)
+                if (ruleLibraryMode) {
+                    stringResource(R.string.label_rule_force_all_summary)
+                } else {
+                    ruleModeRequiredSummary
+                }
             } else {
                 unavailableSummary
             },
             checked = rule.isEnabledAll,
-            enabled = canEditConfig && rulesEnabled && rule.isEnabled,
+            enabled = canEditConfig && rulesEnabled && ruleLibraryMode && rule.isEnabled,
             onCheckedChange = onEnabledAllChange,
         )
     }

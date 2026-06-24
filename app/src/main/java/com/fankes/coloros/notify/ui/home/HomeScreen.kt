@@ -34,11 +34,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fankes.coloros.notify.BuildConfig
 import com.fankes.coloros.notify.R
+import com.fankes.coloros.notify.rules.RuleStore
 import com.fankes.coloros.notify.ui.theme.ColorOSNotifyIconTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -47,6 +49,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Switch
@@ -76,6 +79,7 @@ fun HomeScreen(
     onRestartSystemUi: ((String) -> Unit) -> Unit,
     onOpenRules: () -> Unit,
     onRulesEnabledChange: (Boolean, (String) -> Unit) -> Unit,
+    onIconSourceModeChange: (RuleStore.IconSourceMode, (String) -> Unit) -> Unit,
     onPanelIconReplacementEnabledChange: (Boolean, (String) -> Unit) -> Unit,
     onOplusPushSpecialHandlingEnabledChange: (Boolean, (String) -> Unit) -> Unit,
     onPlaceholderIconEnabledChange: (Boolean, (String) -> Unit) -> Unit,
@@ -123,6 +127,13 @@ fun HomeScreen(
                     },
                 )
             }
+            item { SmallTitle(text = stringResource(R.string.label_icon_source_mode)) }
+            item {
+                IconSourceCard(
+                    state = state,
+                    onIconSourceModeChange = { onIconSourceModeChange(it, ::showSnackbar) },
+                )
+            }
             item { SmallTitle(text = stringResource(R.string.section_rules_data)) }
             item {
                 RulesCard(
@@ -156,15 +167,16 @@ private fun SettingsCard(
 ) {
     val canEditConfig = state.canEditConfig
     val unavailableSummary = stringResource(R.string.label_framework_waiting_summary)
+    val ruleLibraryMode = state.config.iconSourceMode == RuleStore.IconSourceMode.RuleLibrary
     Card(
         modifier = Modifier
             .padding(horizontal = 12.dp)
             .padding(bottom = 12.dp),
     ) {
         ToggleComponent(
-            title = stringResource(R.string.label_rules_enabled),
+            title = stringResource(R.string.label_icon_enhancement_enabled),
             summary = if (canEditConfig) {
-                stringResource(R.string.label_rules_enabled_summary)
+                stringResource(R.string.label_icon_enhancement_enabled_summary)
             } else {
                 unavailableSummary
             },
@@ -183,27 +195,57 @@ private fun SettingsCard(
             enabled = canEditConfig,
             onCheckedChange = onPanelIconReplacementEnabledChange,
         )
-        ToggleComponent(
-            title = stringResource(R.string.label_oplus_push_special_handling_enabled),
-            summary = if (canEditConfig) {
-                stringResource(R.string.label_oplus_push_special_handling_enabled_summary)
-            } else {
-                unavailableSummary
-            },
-            checked = state.config.oplusPushSpecialHandlingEnabled,
-            enabled = canEditConfig && state.config.rulesEnabled,
-            onCheckedChange = onOplusPushSpecialHandlingEnabledChange,
+        if (ruleLibraryMode) {
+            ToggleComponent(
+                title = stringResource(R.string.label_oplus_push_special_handling_enabled),
+                summary = if (canEditConfig) {
+                    stringResource(R.string.label_oplus_push_special_handling_enabled_summary)
+                } else {
+                    unavailableSummary
+                },
+                checked = state.config.oplusPushSpecialHandlingEnabled,
+                enabled = canEditConfig && state.config.rulesEnabled,
+                onCheckedChange = onOplusPushSpecialHandlingEnabledChange,
+            )
+            ToggleComponent(
+                title = stringResource(R.string.label_placeholder_icon_enabled),
+                summary = if (canEditConfig) {
+                    stringResource(R.string.label_placeholder_icon_enabled_summary)
+                } else {
+                    unavailableSummary
+                },
+                checked = state.config.placeholderIconEnabled,
+                enabled = canEditConfig && state.config.rulesEnabled,
+                onCheckedChange = onPlaceholderIconEnabledChange,
+            )
+        }
+    }
+}
+
+@Composable
+private fun IconSourceCard(
+    state: HomeScreenState,
+    onIconSourceModeChange: (RuleStore.IconSourceMode) -> Unit,
+) {
+    val canEditConfig = state.canEditConfig
+    Card(
+        modifier = Modifier
+            .padding(horizontal = 12.dp)
+            .padding(bottom = 12.dp),
+    ) {
+        IconSourceOptionComponent(
+            title = stringResource(R.string.label_icon_source_rule_library),
+            summary = stringResource(R.string.label_icon_source_rule_library_summary),
+            selected = state.config.iconSourceMode == RuleStore.IconSourceMode.RuleLibrary,
+            enabled = canEditConfig,
+            onClick = { onIconSourceModeChange(RuleStore.IconSourceMode.RuleLibrary) },
         )
-        ToggleComponent(
-            title = stringResource(R.string.label_placeholder_icon_enabled),
-            summary = if (canEditConfig) {
-                stringResource(R.string.label_placeholder_icon_enabled_summary)
-            } else {
-                unavailableSummary
-            },
-            checked = state.config.placeholderIconEnabled,
-            enabled = canEditConfig && state.config.rulesEnabled,
-            onCheckedChange = onPlaceholderIconEnabledChange,
+        IconSourceOptionComponent(
+            title = stringResource(R.string.label_icon_source_desktop_theme),
+            summary = stringResource(R.string.label_icon_source_desktop_theme_summary),
+            selected = state.config.iconSourceMode == RuleStore.IconSourceMode.DesktopTheme,
+            enabled = canEditConfig,
+            onClick = { onIconSourceModeChange(RuleStore.IconSourceMode.DesktopTheme) },
         )
     }
 }
@@ -429,6 +471,32 @@ private fun ToggleComponent(
 }
 
 @Composable
+private fun IconSourceOptionComponent(
+    title: String,
+    summary: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    BasicComponent(
+        title = title,
+        summary = summary,
+        startAction = {
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                enabled = enabled,
+            )
+        },
+        enabled = enabled,
+        onClick = {
+            if (!selected) onClick()
+        },
+        role = Role.RadioButton,
+    )
+}
+
+@Composable
 private fun RestartDialog(
     show: Boolean,
     onDismiss: () -> Unit,
@@ -579,6 +647,7 @@ private fun HomeScreenLightPreview() {
             onRestartSystemUi = {},
             onOpenRules = {},
             onRulesEnabledChange = { _, _ -> },
+            onIconSourceModeChange = { _, _ -> },
             onPanelIconReplacementEnabledChange = { _, _ -> },
             onOplusPushSpecialHandlingEnabledChange = { _, _ -> },
             onPlaceholderIconEnabledChange = { _, _ -> },
@@ -606,6 +675,7 @@ private fun HomeScreenDarkPreview() {
             onRestartSystemUi = {},
             onOpenRules = {},
             onRulesEnabledChange = { _, _ -> },
+            onIconSourceModeChange = { _, _ -> },
             onPanelIconReplacementEnabledChange = { _, _ -> },
             onOplusPushSpecialHandlingEnabledChange = { _, _ -> },
             onPlaceholderIconEnabledChange = { _, _ -> },
@@ -632,6 +702,7 @@ private fun HomeScreenEmptyPreview() {
             onRestartSystemUi = {},
             onOpenRules = {},
             onRulesEnabledChange = { _, _ -> },
+            onIconSourceModeChange = { _, _ -> },
             onPanelIconReplacementEnabledChange = { _, _ -> },
             onOplusPushSpecialHandlingEnabledChange = { _, _ -> },
             onPlaceholderIconEnabledChange = { _, _ -> },

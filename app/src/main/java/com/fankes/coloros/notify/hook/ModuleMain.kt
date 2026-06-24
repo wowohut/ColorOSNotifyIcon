@@ -6,11 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
 import android.service.notification.StatusBarNotification
@@ -24,6 +21,7 @@ import com.fankes.coloros.notify.core.ModuleInfo
 import com.fankes.coloros.notify.core.SystemPackages
 import com.fankes.coloros.notify.hook.icon.IconBitmapClassifier
 import com.fankes.coloros.notify.hook.icon.NotificationIconResolver
+import com.fankes.coloros.notify.hook.icon.ThemeIconProvider
 import com.fankes.coloros.notify.hook.reflect.Reflection
 import com.fankes.coloros.notify.hook.systemui.SystemUiMembers
 import com.fankes.coloros.notify.rules.IconRule
@@ -34,16 +32,11 @@ import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.io.FileInputStream
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 class ModuleMain : XposedModule() {
 
     companion object {
         private const val EXTRA_ORIGINAL_SMALL_ICON = "com.fankes.coloros.notify.original_small_icon"
-        private const val OPLUS_GROUP_ICON_CANVAS_DP = 32f
-        private const val OPLUS_GROUP_ICON_CONTENT_DP = 24f
-        private const val OPLUS_GROUP_ICON_CONTAINER_CLEANUP_DP = 48f
         private val OPLUS_GROUP_ICON_REAPPLY_DELAYS_MS = longArrayOf(64L, 180L, 360L)
     }
 
@@ -83,13 +76,14 @@ class ModuleMain : XposedModule() {
         val remotePrefs = remotePrefsOrNull()
         val rulesJson = loadRemoteRulesJson()
         systemUiConfig = RuleStore.readModuleConfig(remotePrefs)
+        ThemeIconProvider.clearCache()
         systemUiRules = RuleStore.applyRuleOverrides(
             rules = RuleStore.parseRules(rulesJson),
             source = remotePrefs,
         ).associateBy { it.packageName }
         emitLog(
             Log.INFO,
-            "SystemUI 配置已加载：enabled=${systemUiConfig.moduleEnabled}, rulesEnabled=${systemUiConfig.rulesEnabled}, panelEnabled=${systemUiConfig.panelIconReplacementEnabled}, oplusPush=${systemUiConfig.oplusPushSpecialHandlingEnabled}, placeholder=${systemUiConfig.placeholderIconEnabled}, rules=${systemUiRules.size}"
+            "SystemUI 配置已加载：enabled=${systemUiConfig.moduleEnabled}, rulesEnabled=${systemUiConfig.rulesEnabled}, iconSource=${systemUiConfig.iconSourceMode}, panelEnabled=${systemUiConfig.panelIconReplacementEnabled}, oplusPush=${systemUiConfig.oplusPushSpecialHandlingEnabled}, placeholder=${systemUiConfig.placeholderIconEnabled}, rules=${systemUiRules.size}"
         )
         val mirroredRuleCount = remotePrefs?.getInt(RuleStore.KEY_RULES_COUNT, 0) ?: 0
         if (rulesJson.isBlank() && mirroredRuleCount > 0) {
@@ -313,7 +307,7 @@ class ModuleMain : XposedModule() {
         ) ?: return
         val effectivePlan = when (target) {
             PanelIconTarget.Header -> renderPlan
-            PanelIconTarget.OplusGroupSummary -> renderPlan.asOplusGroupSummaryPlan(icon.context)
+            PanelIconTarget.OplusGroupSummary -> renderPlan.asOplusGroupSummaryPlan()
         }
         runCatching {
             if (target == PanelIconTarget.OplusGroupSummary) {
@@ -348,66 +342,25 @@ class ModuleMain : XposedModule() {
         plan: NotificationIconResolver.PanelIconRenderPlan,
         target: PanelIconTarget,
     ) {
-        val padding = (plan.paddingDp * resources.displayMetrics.density + 0.5f).toInt()
         clearColorFilter()
         imageTintList = null
         background = null
         foreground = null
         clipToOutline = plan.clipToOutline
         if (target == PanelIconTarget.OplusGroupSummary) {
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            scaleType = ImageView.ScaleType.FIT_CENTER
             adjustViewBounds = false
         }
-        setPadding(padding, padding, padding, padding)
         setImageDrawable(plan.drawable)
         plan.tintColor?.let {
             colorFilter = PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN)
         }
     }
 
-    private fun NotificationIconResolver.PanelIconRenderPlan.asOplusGroupSummaryPlan(
-        context: Context,
-    ): NotificationIconResolver.PanelIconRenderPlan = copy(
-        drawable = drawable.renderForOplusGroupSummary(
-            context = context,
-            tintColor = tintColor,
-            canvasDp = OPLUS_GROUP_ICON_CANVAS_DP,
-            contentDp = OPLUS_GROUP_ICON_CONTENT_DP,
-        ),
-        tintColor = null,
-        paddingDp = 0f,
-        clipToOutline = false,
-    )
-
-    private fun Drawable.renderForOplusGroupSummary(
-        context: Context,
-        tintColor: Int?,
-        canvasDp: Float,
-        contentDp: Float,
-    ): Drawable {
-        val canvasSize = context.dpToPx(canvasDp).coerceAtLeast(1)
-        val contentSize = context.dpToPx(contentDp).coerceIn(1, canvasSize)
-        val bitmap = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val source = constantState?.newDrawable(context.resources)?.mutate() ?: mutate()
-        val intrinsicWidth = source.intrinsicWidth.takeIf { it > 0 } ?: contentSize
-        val intrinsicHeight = source.intrinsicHeight.takeIf { it > 0 } ?: contentSize
-        val scale = min(
-            contentSize.toFloat() / intrinsicWidth.toFloat(),
-            contentSize.toFloat() / intrinsicHeight.toFloat(),
+    private fun NotificationIconResolver.PanelIconRenderPlan.asOplusGroupSummaryPlan(): NotificationIconResolver.PanelIconRenderPlan =
+        copy(
+            clipToOutline = false,
         )
-        val drawWidth = (intrinsicWidth * scale).roundToInt().coerceIn(1, canvasSize)
-        val drawHeight = (intrinsicHeight * scale).roundToInt().coerceIn(1, canvasSize)
-        val left = (canvasSize - drawWidth) / 2
-        val top = (canvasSize - drawHeight) / 2
-        tintColor?.let {
-            source.colorFilter = PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN)
-        }
-        source.setBounds(left, top, left + drawWidth, top + drawHeight)
-        source.draw(canvas)
-        source.clearColorFilter()
-        return BitmapDrawable(context.resources, bitmap)
-    }
 
     private fun ImageView.clearOplusGroupSummaryDecoration() {
         background = null
@@ -416,20 +369,15 @@ class ModuleMain : XposedModule() {
         imageTintList = null
         clearColorFilter()
 
-        val maxContainerSize = context.dpToPx(OPLUS_GROUP_ICON_CONTAINER_CLEANUP_DP)
-        var ancestor = parent as? View
-        repeat(2) {
-            val view = ancestor ?: return@repeat
-            if (view.isCompactIconContainer(maxContainerSize)) {
-                view.background = null
-                view.foreground = null
-                view.clipToOutline = false
-                if (view is ViewGroup) {
-                    view.clipChildren = false
-                    view.clipToPadding = false
-                }
+        val container = parent as? View
+        if (container?.id == systemUiId("icon_container")) {
+            container.background = null
+            container.foreground = null
+            container.clipToOutline = false
+            if (container is ViewGroup) {
+                container.clipChildren = false
+                container.clipToPadding = false
             }
-            ancestor = view.parent as? View
         }
     }
 
@@ -445,16 +393,6 @@ class ModuleMain : XposedModule() {
         OPLUS_GROUP_ICON_REAPPLY_DELAYS_MS.forEach { delay ->
             postDelayed(action, delay)
         }
-    }
-
-    private fun View.isCompactIconContainer(maxSizePx: Int): Boolean {
-        val widthPx = measuredWidth.takeIf { it > 0 } ?: layoutParams?.width ?: 0
-        val heightPx = measuredHeight.takeIf { it > 0 } ?: layoutParams?.height ?: 0
-        return widthPx in 1..maxSizePx && heightPx in 1..maxSizePx
-    }
-
-    private fun Context.dpToPx(dp: Float): Int {
-        return (dp * resources.displayMetrics.density + 0.5f).toInt()
     }
 
     private fun statusBarNotificationFromRow(members: SystemUiMembers, row: Any): StatusBarNotification? {

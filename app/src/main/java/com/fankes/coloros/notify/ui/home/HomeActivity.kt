@@ -45,6 +45,7 @@ class HomeActivity : ComponentActivity() {
                     onRestartSystemUi = ::performRestartSystemUi,
                     onOpenRules = ::openRules,
                     onRulesEnabledChange = ::setRulesEnabled,
+                    onIconSourceModeChange = ::setIconSourceMode,
                     onPanelIconReplacementEnabledChange = ::setPanelIconReplacementEnabled,
                     onOplusPushSpecialHandlingEnabledChange = ::setOplusPushSpecialHandlingEnabled,
                     onPlaceholderIconEnabledChange = ::setPlaceholderIconEnabled,
@@ -73,6 +74,15 @@ class HomeActivity : ComponentActivity() {
         RuleStore.setRulesEnabled(enabled)
         onConfigChanged(service, onShowMessage) {
             RuleStore.setRulesEnabled(previous)
+        }
+    }
+
+    private fun setIconSourceMode(mode: RuleStore.IconSourceMode, onShowMessage: (String) -> Unit) {
+        val service = requireFrameworkService(onShowMessage) ?: return
+        val previous = RuleStore.moduleConfig.iconSourceMode
+        RuleStore.setIconSourceMode(mode)
+        onConfigChanged(service, onShowMessage) {
+            RuleStore.setIconSourceMode(previous)
         }
     }
 
