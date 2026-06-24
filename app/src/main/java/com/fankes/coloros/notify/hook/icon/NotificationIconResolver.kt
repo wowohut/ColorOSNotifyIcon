@@ -17,7 +17,7 @@ internal class NotificationIconResolver(
 
     data class PanelIconRenderPlan(
         val drawable: Drawable,
-        val tintColor: Int,
+        val tintColor: Int?,
         val paddingDp: Float,
         val clipToOutline: Boolean,
         val source: PanelIconSource,
@@ -131,12 +131,7 @@ internal class NotificationIconResolver(
 
     private fun StatusBarNotification.isMediaNotification(): Boolean {
         if (notification.extras?.containsKey(Notification.EXTRA_MEDIA_SESSION) == true) return true
-        return runCatching {
-            notification.javaClass
-                .getDeclaredMethod("isMediaNotification")
-                .apply { isAccessible = true }
-                .invoke(notification) == true
-        }.getOrDefault(false)
+        return notification.category == Notification.CATEGORY_TRANSPORT
     }
 
     private sealed class IconReplacement {

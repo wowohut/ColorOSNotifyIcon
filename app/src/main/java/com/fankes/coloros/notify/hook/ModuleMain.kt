@@ -6,12 +6,19 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
-import android.os.Build
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.core.content.ContextCompat
 import androidx.core.os.BundleCompat
 import com.fankes.coloros.notify.core.ModuleInfo
 import com.fankes.coloros.notify.core.SystemPackages
@@ -27,11 +34,17 @@ import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
 import io.github.libxposed.api.XposedModuleInterface.SystemServerStartingParam
 import java.io.FileInputStream
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 class ModuleMain : XposedModule() {
 
     companion object {
         private const val EXTRA_ORIGINAL_SMALL_ICON = "com.fankes.coloros.notify.original_small_icon"
+        private const val OPLUS_GROUP_ICON_CANVAS_DP = 32f
+        private const val OPLUS_GROUP_ICON_CONTENT_DP = 24f
+        private const val OPLUS_GROUP_ICON_CONTAINER_CLEANUP_DP = 48f
+        private val OPLUS_GROUP_ICON_REAPPLY_DELAYS_MS = longArrayOf(64L, 180L, 360L)
     }
 
     private val onceLogs = ConcurrentHashMap.newKeySet<String>()
@@ -42,6 +55,11 @@ class ModuleMain : XposedModule() {
     private var notificationRefreshCoordinator: Any? = null
     private var systemUiRefreshReceiver: BroadcastReceiver? = null
     private var systemUiRefreshReceiverRegistered = false
+
+    private enum class PanelIconTarget {
+        Header,
+        OplusGroupSummary,
+    }
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         emitLog(
@@ -245,7 +263,7 @@ class ModuleMain : XposedModule() {
             hook(method).intercept { chain ->
                 val result = chain.proceed()
                 val wrapper = chain.thisObject ?: return@intercept result
-                applyPanelIconReplacement(members, wrapper)
+                applyPanelIconReplacement(members, wrapper, target = PanelIconTarget.OplusGroupSummary)
                 result
             }
         }
@@ -253,7 +271,7 @@ class ModuleMain : XposedModule() {
             hook(method).intercept { chain ->
                 val result = chain.proceed()
                 val wrapper = chain.thisObject ?: return@intercept result
-                applyPanelIconReplacement(members, wrapper)
+                applyPanelIconReplacement(members, wrapper, target = PanelIconTarget.OplusGroupSummary)
                 result
             }
         }
@@ -265,14 +283,26 @@ class ModuleMain : XposedModule() {
         wrapper: Any,
         rowCandidate: Any? = null,
         iconView: ImageView? = null,
+        target: PanelIconTarget = PanelIconTarget.Header,
     ) {
         if (!systemUiConfig.panelIconReplacementEnabled) return
         val row = rowCandidate ?: runCatching {
             members.notificationViewWrapperRowField?.get(wrapper)
         }.getOrNull() ?: return
-        val icon = iconView ?: runCatching {
-            members.notificationHeaderGetIcon?.invoke(wrapper) as? ImageView
-        }.getOrNull() ?: return
+        val rowView = row as? View
+        val icon = iconView ?: when (target) {
+            PanelIconTarget.Header -> runCatching {
+                members.notificationHeaderGetIcon?.invoke(wrapper) as? ImageView
+            }.getOrNull()
+            PanelIconTarget.OplusGroupSummary -> rowView?.findOplusGroupSummaryIcon()
+        } ?: run {
+            if (target == PanelIconTarget.OplusGroupSummary) {
+                rowView?.post {
+                    applyPanelIconReplacement(members, wrapper, row, iconView, target)
+                }
+            }
+            return
+        }
         ensureSystemUiRefreshReceiver(icon.context, members)
         val sbn = statusBarNotificationFromRow(members, row) ?: return
         val renderPlan = iconResolver().resolvePanelIconPlan(
@@ -281,22 +311,150 @@ class ModuleMain : XposedModule() {
             originalSmallIcon = originalSmallIconOf(sbn),
             currentDrawable = icon.drawable,
         ) ?: return
+        val effectivePlan = when (target) {
+            PanelIconTarget.Header -> renderPlan
+            PanelIconTarget.OplusGroupSummary -> renderPlan.asOplusGroupSummaryPlan(icon.context)
+        }
         runCatching {
-            icon.applyPanelIconRenderPlan(renderPlan)
+            if (target == PanelIconTarget.OplusGroupSummary) {
+                icon.clearOplusGroupSummaryDecoration()
+                icon.applyPanelIconRenderPlan(effectivePlan, target)
+                icon.reapplyOplusGroupSummaryIcon(effectivePlan) {
+                    statusBarNotificationFromRow(members, row)?.key == sbn.key
+                }
+                infoOnce("systemui.panel.oplus.group.icon", "SystemUI Hook 已安装：Oplus 聚合摘要图标路径")
+            } else {
+                icon.applyPanelIconRenderPlan(effectivePlan, target)
+            }
         }.onFailure {
             warnOnce("systemui.panel.icon.replace", "通知面板规则图标注入失败", it)
         }
     }
 
-    private fun ImageView.applyPanelIconRenderPlan(plan: NotificationIconResolver.PanelIconRenderPlan) {
+    private fun View.findOplusGroupSummaryIcon(): ImageView? {
+        val headerId = systemUiId("oplus_notification_collapsed_group_header")
+        val containerId = systemUiId("icon_container")
+        val iconId = systemUiId("icon")
+        if (headerId == 0 || containerId == 0 || iconId == 0) return null
+        val header = findViewById<View>(headerId) as? ViewGroup ?: return null
+        val container = header.findViewById<View>(containerId) as? ViewGroup ?: header
+        return container.findViewById<View>(iconId) as? ImageView
+    }
+
+    private fun View.systemUiId(name: String): Int =
+        resources.getIdentifier(name, "id", SystemPackages.SYSTEM_UI)
+
+    private fun ImageView.applyPanelIconRenderPlan(
+        plan: NotificationIconResolver.PanelIconRenderPlan,
+        target: PanelIconTarget,
+    ) {
         val padding = (plan.paddingDp * resources.displayMetrics.density + 0.5f).toInt()
         clearColorFilter()
         imageTintList = null
         background = null
+        foreground = null
         clipToOutline = plan.clipToOutline
+        if (target == PanelIconTarget.OplusGroupSummary) {
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            adjustViewBounds = false
+        }
         setPadding(padding, padding, padding, padding)
         setImageDrawable(plan.drawable)
-        setColorFilter(plan.tintColor)
+        plan.tintColor?.let {
+            colorFilter = PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN)
+        }
+    }
+
+    private fun NotificationIconResolver.PanelIconRenderPlan.asOplusGroupSummaryPlan(
+        context: Context,
+    ): NotificationIconResolver.PanelIconRenderPlan = copy(
+        drawable = drawable.renderForOplusGroupSummary(
+            context = context,
+            tintColor = tintColor,
+            canvasDp = OPLUS_GROUP_ICON_CANVAS_DP,
+            contentDp = OPLUS_GROUP_ICON_CONTENT_DP,
+        ),
+        tintColor = null,
+        paddingDp = 0f,
+        clipToOutline = false,
+    )
+
+    private fun Drawable.renderForOplusGroupSummary(
+        context: Context,
+        tintColor: Int?,
+        canvasDp: Float,
+        contentDp: Float,
+    ): Drawable {
+        val canvasSize = context.dpToPx(canvasDp).coerceAtLeast(1)
+        val contentSize = context.dpToPx(contentDp).coerceIn(1, canvasSize)
+        val bitmap = Bitmap.createBitmap(canvasSize, canvasSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val source = constantState?.newDrawable(context.resources)?.mutate() ?: mutate()
+        val intrinsicWidth = source.intrinsicWidth.takeIf { it > 0 } ?: contentSize
+        val intrinsicHeight = source.intrinsicHeight.takeIf { it > 0 } ?: contentSize
+        val scale = min(
+            contentSize.toFloat() / intrinsicWidth.toFloat(),
+            contentSize.toFloat() / intrinsicHeight.toFloat(),
+        )
+        val drawWidth = (intrinsicWidth * scale).roundToInt().coerceIn(1, canvasSize)
+        val drawHeight = (intrinsicHeight * scale).roundToInt().coerceIn(1, canvasSize)
+        val left = (canvasSize - drawWidth) / 2
+        val top = (canvasSize - drawHeight) / 2
+        tintColor?.let {
+            source.colorFilter = PorterDuffColorFilter(it, PorterDuff.Mode.SRC_IN)
+        }
+        source.setBounds(left, top, left + drawWidth, top + drawHeight)
+        source.draw(canvas)
+        source.clearColorFilter()
+        return BitmapDrawable(context.resources, bitmap)
+    }
+
+    private fun ImageView.clearOplusGroupSummaryDecoration() {
+        background = null
+        foreground = null
+        clipToOutline = false
+        imageTintList = null
+        clearColorFilter()
+
+        val maxContainerSize = context.dpToPx(OPLUS_GROUP_ICON_CONTAINER_CLEANUP_DP)
+        var ancestor = parent as? View
+        repeat(2) {
+            val view = ancestor ?: return@repeat
+            if (view.isCompactIconContainer(maxContainerSize)) {
+                view.background = null
+                view.foreground = null
+                view.clipToOutline = false
+                if (view is ViewGroup) {
+                    view.clipChildren = false
+                    view.clipToPadding = false
+                }
+            }
+            ancestor = view.parent as? View
+        }
+    }
+
+    private fun ImageView.reapplyOplusGroupSummaryIcon(
+        plan: NotificationIconResolver.PanelIconRenderPlan,
+        isStillSameNotification: () -> Boolean,
+    ) {
+        val action = Runnable {
+            if (!isAttachedToWindow || !isStillSameNotification()) return@Runnable
+            clearOplusGroupSummaryDecoration()
+            applyPanelIconRenderPlan(plan, PanelIconTarget.OplusGroupSummary)
+        }
+        OPLUS_GROUP_ICON_REAPPLY_DELAYS_MS.forEach { delay ->
+            postDelayed(action, delay)
+        }
+    }
+
+    private fun View.isCompactIconContainer(maxSizePx: Int): Boolean {
+        val widthPx = measuredWidth.takeIf { it > 0 } ?: layoutParams?.width ?: 0
+        val heightPx = measuredHeight.takeIf { it > 0 } ?: layoutParams?.height ?: 0
+        return widthPx in 1..maxSizePx && heightPx in 1..maxSizePx
+    }
+
+    private fun Context.dpToPx(dp: Float): Int {
+        return (dp * resources.displayMetrics.density + 0.5f).toInt()
     }
 
     private fun statusBarNotificationFromRow(members: SystemUiMembers, row: Any): StatusBarNotification? {
@@ -327,11 +485,12 @@ class ModuleMain : XposedModule() {
             }
             runCatching {
                 val filter = IntentFilter(ModuleInfo.ACTION_REFRESH_SYSTEM_UI_CONFIG)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    appContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
-                } else {
-                    appContext.registerReceiver(receiver, filter)
-                }
+                ContextCompat.registerReceiver(
+                    appContext,
+                    receiver,
+                    filter,
+                    ContextCompat.RECEIVER_EXPORTED,
+                )
             }.onSuccess {
                 systemUiRefreshReceiver = receiver
                 systemUiRefreshReceiverRegistered = true
